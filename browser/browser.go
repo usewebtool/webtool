@@ -16,6 +16,8 @@ type Browser struct {
 	WSUrl string `json:"ws_url"`
 	// ChromeDataDir is the Chrome user data directory used for DevToolsActivePort discovery.
 	ChromeDataDir string `json:"chrome_data_dir"`
+	// TargetID is the CDP target ID of the active page.
+	TargetID string `json:"target_id"`
 }
 
 // New creates a new Browser with default settings.
