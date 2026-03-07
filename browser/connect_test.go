@@ -55,14 +55,14 @@ func TestResolveWSUrl_AlreadySet(t *testing.T) {
 }
 
 func TestResolveWSUrl_WithURLSkipsDiscovery(t *testing.T) {
-	b := New().WithURL("ws://127.0.0.1:9222/devtools/browser/abc").WithUserDataDir("/nonexistent")
+	b := New().WithURL("ws://127.0.0.1:9222/devtools/browser/abc").WithChromeDataDir("/nonexistent")
 
 	err := b.resolveWSUrl()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if b.UserDataDir != "/nonexistent" {
-		t.Errorf("got UserDataDir %q, want %q", b.UserDataDir, "/nonexistent")
+	if b.ChromeDataDir != "/nonexistent" {
+		t.Errorf("got ChromeDataDir %q, want %q", b.ChromeDataDir, "/nonexistent")
 	}
 }
 
@@ -71,7 +71,7 @@ func TestResolveWSUrl_DiscoversFromDataDir(t *testing.T) {
 	portFile := filepath.Join(dir, "DevToolsActivePort")
 	os.WriteFile(portFile, []byte("9222\n/devtools/browser/abc123\n"), 0644)
 
-	b := New().WithUserDataDir(dir)
+	b := New().WithChromeDataDir(dir)
 
 	err := b.resolveWSUrl()
 	if err != nil {
@@ -84,7 +84,7 @@ func TestResolveWSUrl_DiscoversFromDataDir(t *testing.T) {
 
 func TestResolveWSUrl_MissingPortFileErrors(t *testing.T) {
 	dir := t.TempDir()
-	b := New().WithUserDataDir(dir)
+	b := New().WithChromeDataDir(dir)
 
 	err := b.resolveWSUrl()
 	if err == nil {

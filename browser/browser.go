@@ -1,22 +1,40 @@
 package browser
 
-import "github.com/go-rod/rod"
+import (
+	"os"
+	"path/filepath"
+
+	"github.com/go-rod/rod"
+)
 
 // Browser holds a connection to a running Chrome instance.
 type Browser struct {
-	rod         *rod.Browser
-	WSUrl       string `json:"ws_url"`
-	UserDataDir string `json:"user_data_dir"`
+	rod           *rod.Browser
+	// DataDir is the directory where webtool persists state (e.g. state.json).
+	DataDir string `json:"-"`
+	// WSUrl is the Chrome DevTools WebSocket URL used for CDP communication.
+	WSUrl string `json:"ws_url"`
+	// ChromeDataDir is the Chrome user data directory used for DevToolsActivePort discovery.
+	ChromeDataDir string `json:"chrome_data_dir"`
 }
 
 // New creates a new Browser with default settings.
 func New() *Browser {
-	return &Browser{}
+	home, _ := os.UserHomeDir()
+	return &Browser{
+		DataDir: filepath.Join(home, ".webtool"),
+	}
 }
 
-// WithUserDataDir sets the Chrome user data directory for DevToolsActivePort discovery.
-func (b *Browser) WithUserDataDir(dir string) *Browser {
-	b.UserDataDir = dir
+// WithDataDir sets the directory where webtool persists state (e.g. state.json).
+func (b *Browser) WithDataDir(dir string) *Browser {
+	b.DataDir = dir
+	return b
+}
+
+// WithChromeDataDir sets the Chrome user data directory for DevToolsActivePort discovery.
+func (b *Browser) WithChromeDataDir(dir string) *Browser {
+	b.ChromeDataDir = dir
 	return b
 }
 

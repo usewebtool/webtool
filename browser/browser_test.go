@@ -1,14 +1,32 @@
 package browser
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-func TestWithUserDataDir(t *testing.T) {
-	b := New().WithUserDataDir("/custom/chrome/data")
+func TestNewDefaultDataDir(t *testing.T) {
+	home, _ := os.UserHomeDir()
+	b := New()
+	want := filepath.Join(home, ".webtool")
+	if b.DataDir != want {
+		t.Errorf("got DataDir %q, want %q", b.DataDir, want)
+	}
+}
 
-	if b.UserDataDir != "/custom/chrome/data" {
-		t.Errorf("got UserDataDir %q, want %q", b.UserDataDir, "/custom/chrome/data")
+func TestWithDataDir(t *testing.T) {
+	b := New().WithDataDir("/custom/state")
+	if b.DataDir != "/custom/state" {
+		t.Errorf("got DataDir %q, want %q", b.DataDir, "/custom/state")
+	}
+}
+
+func TestWithChromeDataDir(t *testing.T) {
+	b := New().WithChromeDataDir("/custom/chrome/data")
+
+	if b.ChromeDataDir != "/custom/chrome/data" {
+		t.Errorf("got ChromeDataDir %q, want %q", b.ChromeDataDir, "/custom/chrome/data")
 	}
 }
 
@@ -21,10 +39,10 @@ func TestWithURL(t *testing.T) {
 }
 
 func TestChaining(t *testing.T) {
-	b := New().WithUserDataDir("/data").WithURL("ws://localhost:1234")
+	b := New().WithChromeDataDir("/data").WithURL("ws://localhost:1234")
 
-	if b.UserDataDir != "/data" {
-		t.Errorf("got UserDataDir %q, want %q", b.UserDataDir, "/data")
+	if b.ChromeDataDir != "/data" {
+		t.Errorf("got ChromeDataDir %q, want %q", b.ChromeDataDir, "/data")
 	}
 	if b.WSUrl != "ws://localhost:1234" {
 		t.Errorf("got WSUrl %q, want %q", b.WSUrl, "ws://localhost:1234")

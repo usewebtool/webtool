@@ -40,15 +40,15 @@ func (b *Browser) resolveWSUrl() error {
 		return nil
 	}
 
-	if b.UserDataDir == "" {
+	if b.ChromeDataDir == "" {
 		dir, err := DefaultChromeUserDataDir()
 		if err != nil {
 			return err
 		}
-		b.UserDataDir = dir
+		b.ChromeDataDir = dir
 	}
 
-	wsURL, err := discoverWSURLFromDir(b.UserDataDir)
+	wsURL, err := discoverWSURLFromDir(b.ChromeDataDir)
 	if err != nil {
 		return err
 	}
