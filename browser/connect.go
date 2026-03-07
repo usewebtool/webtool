@@ -2,19 +2,63 @@ package browser
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
+
+	"github.com/go-rod/rod"
 )
 
-// discoverWSURL reads Chrome's DevToolsActivePort file to find the debugging WebSocket URL.
-func discoverWSURL() (string, error) {
-	dataDir, err := chromeUserDataDir()
-	if err != nil {
-		return "", err
+// Connect establishes a connection to Chrome.
+// If no URL was set, it discovers Chrome via DevToolsActivePort in the user data directory.
+func (b *Browser) Connect() error {
+	var err error
+
+	if err = b.resolveWSUrl(); err != nil {
+		return err
 	}
-	return discoverWSURLFromDir(dataDir)
+
+	if b.WSUrl, err = normalizeURL(b.WSUrl); err != nil {
+		return err
+	}
+
+	rb := rod.New().ControlURL(b.WSUrl).NoDefaultDevice()
+	if err = rb.Connect(); err != nil {
+		return err
+	}
+	b.rod = rb
+
+	return nil
+}
+
+// resolveWSUrl populates b.WSUrl if not already set.
+func (b *Browser) resolveWSUrl() error {
+	if b.WSUrl != "" {
+		return nil
+	}
+
+	if b.UserDataDir == "" {
+		dir, err := DefaultChromeUserDataDir()
+		if err != nil {
+			return err
+		}
+		b.UserDataDir = dir
+	}
+
+	wsURL, err := discoverWSURLFromDir(b.UserDataDir)
+	if err != nil {
+		return err
+	}
+	b.WSUrl = wsURL
+	return nil
+}
+
+// Close disconnects from Chrome without closing it.
+func (b *Browser) Close() error {
+	return b.rod.Close()
 }
 
 // discoverWSURLFromDir reads DevToolsActivePort from a given directory.
@@ -35,13 +79,8 @@ func discoverWSURLFromDir(dataDir string) (string, error) {
 	return fmt.Sprintf("ws://127.0.0.1:%s%s", port, path), nil
 }
 
-// chromeUserDataDir returns the default Chrome user data directory for the current OS.
-// Override with WEBTOOL_CHROME_USER_DATA_DIR env var.
-func chromeUserDataDir() (string, error) {
-	if dir := os.Getenv("WEBTOOL_CHROME_USER_DATA_DIR"); dir != "" {
-		return dir, nil
-	}
-
+// DefaultChromeUserDataDir returns the default Chrome user data directory for the current OS.
+func DefaultChromeUserDataDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -61,4 +100,41 @@ func chromeUserDataDir() (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
+}
+
+// Copied from go-rod/rod/lib/launcher (ResolveURL normalization, without the HTTP request).
+var (
+	regPort     = regexp.MustCompile(`^\:?(\d+)$`)
+	regProtocol = regexp.MustCompile(`^\w+://`)
+)
+
+// normalizeURL normalizes a CDP URL into a ws:// URL that rod can connect to.
+// Accepts formats: "9222", ":9222", "host:9222", "ws://host:9222/path",
+// "http://host:9222/path".
+func normalizeURL(u string) (string, error) {
+	if u == "" {
+		u = "9222"
+	}
+
+	u = strings.TrimSpace(u)
+	u = regPort.ReplaceAllString(u, "127.0.0.1:$1")
+
+	if !regProtocol.MatchString(u) {
+		u = "ws://" + u
+	}
+
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return "", err
+	}
+
+	// Ensure ws scheme
+	switch parsed.Scheme {
+	case "http":
+		parsed.Scheme = "ws"
+	case "https":
+		parsed.Scheme = "wss"
+	}
+
+	return parsed.String(), nil
 }

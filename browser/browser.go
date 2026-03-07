@@ -1,9 +1,6 @@
 package browser
 
-import (
-	"github.com/go-rod/rod"
-	"github.com/go-rod/rod/lib/launcher"
-)
+import "github.com/go-rod/rod"
 
 // Browser holds a connection to a running Chrome instance.
 type Browser struct {
@@ -12,46 +9,19 @@ type Browser struct {
 	UserDataDir string `json:"user_data_dir"`
 }
 
-// New connects to the user's running Chrome instance via CDP.
-// It discovers Chrome's debugging URL from the DevToolsActivePort file.
-func New() (*Browser, error) {
-	dataDir, err := chromeUserDataDir()
-	if err != nil {
-		return nil, err
-	}
-
-	wsURL, err := discoverWSURLFromDir(dataDir)
-	if err != nil {
-		return nil, err
-	}
-
-	b, err := NewFromURL(wsURL)
-	if err != nil {
-		return nil, err
-	}
-	b.UserDataDir = dataDir
-	return b, nil
+// New creates a new Browser with default settings.
+func New() *Browser {
+	return &Browser{}
 }
 
-// NewFromURL connects to Chrome using an explicit debugging WebSocket URL.
-func NewFromURL(wsURL string) (*Browser, error) {
-	u, err := launcher.ResolveURL(wsURL)
-	if err != nil {
-		return nil, err
-	}
-
-	b := rod.New().ControlURL(u).NoDefaultDevice()
-	if err := b.Connect(); err != nil {
-		return nil, err
-	}
-
-	return &Browser{
-		rod:   b,
-		WSUrl: wsURL,
-	}, nil
+// WithUserDataDir sets the Chrome user data directory for DevToolsActivePort discovery.
+func (b *Browser) WithUserDataDir(dir string) *Browser {
+	b.UserDataDir = dir
+	return b
 }
 
-// Close disconnects from Chrome without closing it.
-func (b *Browser) Close() error {
-	return b.rod.Close()
+// WithURL sets an explicit debugging WebSocket URL, skipping DevToolsActivePort discovery.
+func (b *Browser) WithURL(wsURL string) *Browser {
+	b.WSUrl = wsURL
+	return b
 }
