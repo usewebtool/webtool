@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -87,6 +88,29 @@ func TestServerPIDFile(t *testing.T) {
 	}
 	if len(data) == 0 {
 		t.Fatal("PID file is empty")
+	}
+}
+
+func TestOpenMissingURL(t *testing.T) {
+	sock := startTestServer(t)
+	client := httpClient(sock)
+
+	resp, err := client.Post("http://localhost/open", "application/json", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatalf("POST /open: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+
+	var r Response
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if r.Err() == nil {
+		t.Error("expected error for missing URL")
 	}
 }
 

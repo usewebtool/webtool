@@ -63,6 +63,8 @@ func (s *Server) Start() error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.HandleFunc("POST /open", s.handleOpen)
+	mux.HandleFunc("GET /tabs", s.handleTabs)
 	mux.HandleFunc("POST /stop", s.handleStop)
 
 	s.srv = &http.Server{Handler: mux}
@@ -109,6 +111,39 @@ func (s *Server) pidFile() string {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, Response{})
+}
+
+func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
+	var req OpenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, Response{Error: fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+	if req.URL == "" {
+		writeJSON(w, http.StatusBadRequest, Response{Error: "url is required"})
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.browser.Open(r.Context(), req.URL); err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, Response{})
+}
+
+func (s *Server) handleTabs(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tabs, err := s.browser.Tabs(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, TabsResponse{Tabs: tabs})
 }
 
 func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
