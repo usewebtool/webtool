@@ -1,26 +1,8 @@
 package browser
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 )
-
-func TestNewDefaultDataDir(t *testing.T) {
-	home, _ := os.UserHomeDir()
-	b := New()
-	want := filepath.Join(home, ".webtool")
-	if b.DataDir != want {
-		t.Errorf("got DataDir %q, want %q", b.DataDir, want)
-	}
-}
-
-func TestWithDataDir(t *testing.T) {
-	b := New().WithDataDir("/custom/state")
-	if b.DataDir != "/custom/state" {
-		t.Errorf("got DataDir %q, want %q", b.DataDir, "/custom/state")
-	}
-}
 
 func TestWithChromeDataDir(t *testing.T) {
 	b := New().WithChromeDataDir("/custom/chrome/data")
