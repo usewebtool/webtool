@@ -1,22 +1,13 @@
 package agent
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 )
 
-func runtimeDir() string {
-	return filepath.Join(os.TempDir(), "webtool")
-}
-
-func socketPath() string {
-	return filepath.Join(runtimeDir(), "agent.sock")
-}
-
-func pidPath() string {
-	return filepath.Join(runtimeDir(), "agent.pid")
-}
-
-func logPath() string {
-	return filepath.Join(runtimeDir(), "webtool.log")
+func runtimeDir(chromeDataDir string) string {
+	h := sha256.Sum256([]byte(chromeDataDir))
+	return filepath.Join(os.TempDir(), "webtool", fmt.Sprintf("%x", h[:3]))
 }

@@ -58,7 +58,22 @@ func (b *Browser) resolveWSUrl() error {
 
 // Close disconnects from Chrome without closing it.
 func (b *Browser) Close() error {
-	return b.rod.Close()
+	if b.rod == nil {
+		return nil
+	}
+	err := b.rod.Close()
+	b.rod = nil
+	return err
+}
+
+// IsConnected returns true if the browser has an active connection.
+func (b *Browser) IsConnected() bool {
+	return b.rod != nil
+}
+
+// RodBrowser returns the underlying rod browser instance.
+func (b *Browser) RodBrowser() *rod.Browser {
+	return b.rod
 }
 
 // discoverWSURLFromDir reads DevToolsActivePort from a given directory.

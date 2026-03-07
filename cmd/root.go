@@ -17,10 +17,15 @@ var rootCmd = &cobra.Command{
 	Short: "Fast CLI for your Chrome browser.",
 	Long:  "A fast, composable CLI tool that drives a Chrome browser via Chrome DevTools Protocol. Designed for agent-driven workflows.",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		chrome = browser.New()
-		if dir := os.Getenv("WEBTOOL_CHROME_DATA_DIR"); dir != "" {
-			chrome = chrome.WithChromeDataDir(dir)
+		dataDir := os.Getenv("WEBTOOL_CHROME_DATA_DIR")
+		if dataDir == "" {
+			var err error
+			dataDir, err = browser.DefaultChromeUserDataDir()
+			if err != nil {
+				return fmt.Errorf("resolving Chrome data dir: %w", err)
+			}
 		}
+		chrome = browser.New().WithChromeDataDir(dataDir)
 		return nil
 	},
 }
