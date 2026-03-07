@@ -1,3 +1,4 @@
-# browser cli
+# webtool
 
 A CLI for your browser.
+
