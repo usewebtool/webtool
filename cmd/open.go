@@ -12,7 +12,7 @@ var openCmd = &cobra.Command{
 	Short: "Navigate the browser to a URL.",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := chrome.Open(cmd.Context(), args[0]); err != nil {
+		if err := client.Open(cmd.Context(), args[0]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)
 		}

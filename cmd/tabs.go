@@ -12,7 +12,7 @@ var tabsCmd = &cobra.Command{
 	Short: "List open browser tabs.",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		tabs, err := chrome.Tabs(cmd.Context())
+		tabs, err := client.Tabs(cmd.Context())
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)
