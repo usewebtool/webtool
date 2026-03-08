@@ -51,13 +51,13 @@ func (s *Server) Start() error {
 	if err := os.WriteFile(s.pidFile(), []byte(strconv.Itoa(pid)), 0o644); err != nil {
 		return fmt.Errorf("writing PID file: %w", err)
 	}
+	defer s.cleanup()
 
 	// Remove stale socket if it exists.
 	os.Remove(s.socketFile())
 
 	ln, err := net.Listen("unix", s.socketFile())
 	if err != nil {
-		os.Remove(s.pidFile())
 		return fmt.Errorf("listening on socket: %w", err)
 	}
 
@@ -82,9 +82,6 @@ func (s *Server) Start() error {
 	s.logger.Printf("daemon started (pid %d), listening on %s", pid, s.socketFile())
 	// Blocks until Shutdown() is called (from /stop handler or signal handler).
 	err = s.srv.Serve(ln)
-
-	s.cleanup()
-
 	// Serve returns ErrServerClosed on graceful shutdown — not a real error.
 	if err == http.ErrServerClosed {
 		err = nil
