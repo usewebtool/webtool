@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -48,8 +49,10 @@ func NewClientWithDataDir(chromeDataDir string) *Client {
 // EnsureRunning starts the daemon if it is not already running.
 // Returns nil if the daemon is healthy (either already running or just started).
 func (c *Client) EnsureRunning(ctx context.Context) error {
-	if c.Health(ctx) == nil {
+	if err := c.Health(ctx); err == nil {
 		return nil
+	} else if !isNetError(err) {
+		return err
 	}
 
 	if err := c.spawn(); err != nil {
@@ -58,8 +61,11 @@ func (c *Client) EnsureRunning(ctx context.Context) error {
 
 	// Poll until the daemon is ready or the caller cancels (e.g. Ctrl+C).
 	for {
-		if c.Health(ctx) == nil {
+		if err := c.Health(ctx); err == nil {
 			return nil
+		} else if !isNetError(err) {
+			// Server responded with a real error (e.g. Chrome rejected connection).
+			return err
 		}
 		select {
 		case <-ctx.Done():
@@ -67,6 +73,13 @@ func (c *Client) EnsureRunning(ctx context.Context) error {
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
+}
+
+// isNetError returns true if the error is a network-level failure (connection
+// refused, socket not found) as opposed to the server returning an error response.
+func isNetError(err error) bool {
+	var opErr *net.OpError
+	return errors.As(err, &opErr)
 }
 
 // spawn starts the daemon as a detached background process.

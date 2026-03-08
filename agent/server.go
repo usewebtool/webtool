@@ -23,7 +23,8 @@ type Server struct {
 	mu      sync.Mutex
 	srv     *http.Server
 	logger  *log.Logger
-	dir     string // runtime directory; defaults to runtimeDir(), overridable for tests
+	dir     string    // runtime directory; defaults to runtimeDir(), overridable for tests
+	err     chan error // buffered 1; receives Connect result, then closed
 }
 
 // NewServer creates a daemon server with the given browser.
@@ -32,6 +33,7 @@ func NewServer(b *browser.Browser) *Server {
 		browser: b,
 		logger:  log.New(os.Stderr, "", log.LstdFlags),
 		dir:     runtimeDir(b.ChromeDataDir),
+		err:     make(chan error, 1),
 	}
 }
 
@@ -80,6 +82,18 @@ func (s *Server) Start() error {
 		s.Shutdown(context.Background())
 	}()
 
+	// Connect to Chrome in background. /health blocks on s.err until this
+	// completes, so the client gets the real error if Chrome rejects.
+	go func() {
+		err := s.browser.Connect()
+		s.err <- err
+		close(s.err)
+		if err != nil {
+			s.logger.Printf("chrome connection failed: %v", err)
+			s.Shutdown(context.Background())
+		}
+	}()
+
 	s.logger.Printf("daemon started (pid %d), listening on %s", pid, s.socketFile())
 	// Blocks until Shutdown() is called (from /stop handler or signal handler).
 	err = s.srv.Serve(ln)
@@ -114,6 +128,10 @@ func (s *Server) pidFile() string {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if err := <-s.err; err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
 	writeJSON(w, http.StatusOK, Response{})
 }
 

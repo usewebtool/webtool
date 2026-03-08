@@ -17,9 +17,6 @@ var serveCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		b := browser.New().WithChromeDataDir(resolveDataDir())
-		if err := b.Connect(); err != nil {
-			return err
-		}
 		return agent.NewServer(b).Start()
 	},
 }
