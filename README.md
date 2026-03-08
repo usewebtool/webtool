@@ -11,4 +11,5 @@ A CLI for your browser.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `WEBTOOL_HOME` | `~/.webtool` | Base directory for runtime files (socket, PID, logs) |
 | `WEBTOOL_CHROME_DATA_DIR` | OS default | Chrome user data directory for DevToolsActivePort discovery |
