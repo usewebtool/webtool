@@ -6,6 +6,9 @@ import (
 	"github.com/machinae/webtool/browser"
 )
 
+// ErrTimeout is returned when an operation exceeds the --timeout deadline.
+var ErrTimeout = errors.New("operation timed out or element not found")
+
 // Response is the base response for all daemon endpoints.
 type Response struct {
 	Error string `json:"error,omitempty"`

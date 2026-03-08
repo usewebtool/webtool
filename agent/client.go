@@ -198,6 +198,9 @@ func (c *Client) do(ctx context.Context, method, path string, reqBody, respBody 
 
 	resp, err := c.http.Do(req)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return ErrTimeout
+		}
 		return err
 	}
 	defer resp.Body.Close()
