@@ -30,6 +30,11 @@ type TabsResponse struct {
 	Tabs []browser.Tab `json:"tabs,omitempty"`
 }
 
+// ClickRequest is the request body for the /click endpoint.
+type ClickRequest struct {
+	Selector string `json:"selector"`
+}
+
 // SnapshotResponse is the response for the /snapshot endpoint.
 type SnapshotResponse struct {
 	Response

@@ -144,6 +144,15 @@ func (c *Client) Tabs(ctx context.Context) ([]browser.Tab, error) {
 	return resp.Tabs, nil
 }
 
+// Click clicks an element identified by selector (backendNodeId, CSS, or XPath).
+func (c *Client) Click(ctx context.Context, selector string) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/click", ClickRequest{Selector: selector}, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
 // Snapshot returns a text snapshot of the current page's interactive elements.
 func (c *Client) Snapshot(ctx context.Context) (string, error) {
 	var resp SnapshotResponse

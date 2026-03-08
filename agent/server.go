@@ -23,7 +23,7 @@ type Server struct {
 	mu      sync.Mutex
 	srv     *http.Server
 	logger  *log.Logger
-	dir     string    // runtime directory; defaults to runtimeDir(), overridable for tests
+	dir     string     // runtime directory; defaults to runtimeDir(), overridable for tests
 	err     chan error // buffered 1; receives Connect result, then closed
 }
 
@@ -68,6 +68,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /open", s.handleOpen)
 	mux.HandleFunc("GET /tabs", s.handleTabs)
 	mux.HandleFunc("GET /snapshot", s.handleSnapshot)
+	mux.HandleFunc("POST /click", s.handleClick)
 	mux.HandleFunc("POST /stop", s.handleStop)
 
 	s.srv = &http.Server{Handler: mux}
@@ -178,6 +179,27 @@ func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, SnapshotResponse{Snapshot: snapshot})
+}
+
+func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
+	var req ClickRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, Response{Error: fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+	if req.Selector == "" {
+		writeJSON(w, http.StatusBadRequest, Response{Error: "selector is required"})
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.browser.Click(r.Context(), req.Selector); err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, Response{})
 }
 
 func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
