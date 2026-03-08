@@ -14,7 +14,12 @@ import (
 
 // Connect establishes a connection to Chrome.
 // If no URL was set, it discovers Chrome via DevToolsActivePort in the user data directory.
+// Safe to call multiple times — returns immediately if already connected.
 func (b *Browser) Connect() error {
+	if b.rod != nil {
+		return nil
+	}
+
 	var err error
 
 	if err = b.resolveWSUrl(); err != nil {
