@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/machinae/webtool/agent"
 	"github.com/spf13/cobra"
 )
@@ -15,6 +18,7 @@ var stopCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := agent.NewClientWithDataDir(resolveDataDir())
 		c.Stop(cmd.Context()) // Ignore error — idempotent if no daemon running.
+		fmt.Fprintln(os.Stderr, "daemon stopped")
 		return nil
 	},
 }
