@@ -56,17 +56,14 @@ func (c *Client) EnsureRunning(ctx context.Context) error {
 		return fmt.Errorf("starting daemon: %w", err)
 	}
 
-	// Poll until the daemon is ready.
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
+	// Poll until the daemon is ready or the caller cancels (e.g. Ctrl+C).
 	for {
 		if c.Health(ctx) == nil {
 			return nil
 		}
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("daemon did not start in time: %w", ctx.Err())
+			return ctx.Err()
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
