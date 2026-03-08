@@ -131,6 +131,18 @@ func (c *Client) Tabs(ctx context.Context) ([]browser.Tab, error) {
 	return resp.Tabs, nil
 }
 
+// Snapshot returns a text snapshot of the current page's interactive elements.
+func (c *Client) Snapshot(ctx context.Context) (string, error) {
+	var resp SnapshotResponse
+	if err := c.do(ctx, "GET", "/snapshot", nil, &resp); err != nil {
+		return "", err
+	}
+	if err := resp.Err(); err != nil {
+		return "", err
+	}
+	return resp.Snapshot, nil
+}
+
 // Stop sends a shutdown request to the daemon.
 func (c *Client) Stop(ctx context.Context) error {
 	var resp Response

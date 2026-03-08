@@ -29,3 +29,9 @@ type TabsResponse struct {
 	Response
 	Tabs []browser.Tab `json:"tabs,omitempty"`
 }
+
+// SnapshotResponse is the response for the /snapshot endpoint.
+type SnapshotResponse struct {
+	Response
+	Snapshot string `json:"snapshot,omitempty"`
+}

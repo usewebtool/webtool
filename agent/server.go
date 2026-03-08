@@ -65,6 +65,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("POST /open", s.handleOpen)
 	mux.HandleFunc("GET /tabs", s.handleTabs)
+	mux.HandleFunc("GET /snapshot", s.handleSnapshot)
 	mux.HandleFunc("POST /stop", s.handleStop)
 
 	s.srv = &http.Server{Handler: mux}
@@ -147,6 +148,18 @@ func (s *Server) handleTabs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, TabsResponse{Tabs: tabs})
+}
+
+func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	snapshot, err := s.browser.Snapshot(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, SnapshotResponse{Snapshot: snapshot})
 }
 
 func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
