@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -12,7 +13,10 @@ var clickCmd = &cobra.Command{
 	Short: "Click an element by backendNodeId, CSS selector, or XPath.",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := client.Click(cmd.Context(), args[0]); err != nil {
+		ctx, cancel := context.WithTimeout(cmd.Context(), timeoutFlag)
+		defer cancel()
+
+		if err := client.Click(ctx, args[0]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)
 		}

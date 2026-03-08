@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/machinae/webtool/agent"
 	"github.com/machinae/webtool/browser"
@@ -13,10 +14,12 @@ import (
 // client is the shared daemon client for subcommands.
 var client *agent.Client
 
+var timeoutFlag time.Duration
+
 var rootCmd = &cobra.Command{
-	Use:          "webtool",
-	Short:        "Fast CLI for your Chrome browser.",
-	Long:         "A fast, composable CLI tool that drives a Chrome browser via Chrome DevTools Protocol. Designed for agent-driven workflows.",
+	Use:           "webtool",
+	Short:         "Fast CLI for your Chrome browser.",
+	Long:          "A fast, composable CLI tool that drives a Chrome browser via Chrome DevTools Protocol. Designed for agent-driven workflows.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -49,6 +52,10 @@ func resolveDataDir() string {
 		panic(fmt.Sprintf("unsupported OS: %v", err))
 	}
 	return dir
+}
+
+func init() {
+	rootCmd.PersistentFlags().DurationVar(&timeoutFlag, "timeout", 30*time.Second, "timeout for the command (e.g. 5s, 1m)")
 }
 
 // Execute runs the root command.
