@@ -14,9 +14,11 @@ import (
 var client *agent.Client
 
 var rootCmd = &cobra.Command{
-	Use:   "webtool",
-	Short: "Fast CLI for your Chrome browser.",
-	Long:  "A fast, composable CLI tool that drives a Chrome browser via Chrome DevTools Protocol. Designed for agent-driven workflows.",
+	Use:          "webtool",
+	Short:        "Fast CLI for your Chrome browser.",
+	Long:         "A fast, composable CLI tool that drives a Chrome browser via Chrome DevTools Protocol. Designed for agent-driven workflows.",
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		agent.HomeDir = resolveHome()
 		client = agent.NewClientWithDataDir(resolveDataDir())
