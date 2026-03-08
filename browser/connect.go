@@ -32,6 +32,9 @@ func (b *Browser) Connect() error {
 
 	rb := rod.New().ControlURL(b.WSUrl).NoDefaultDevice()
 	if err = rb.Connect(); err != nil {
+		if strings.Contains(err.Error(), "403") {
+			return fmt.Errorf("Chrome rejected the connection. Run webtool start and click Allow in Chrome")
+		}
 		return err
 	}
 	b.rod = rb
