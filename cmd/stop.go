@@ -13,6 +13,7 @@ var stopCmd = &cobra.Command{
 	Short: "Stop the daemon.",
 	Args:  cobra.NoArgs,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		agent.HomeDir = resolveHome()
 		return nil // Don't EnsureRunning — we want to stop, not start.
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {

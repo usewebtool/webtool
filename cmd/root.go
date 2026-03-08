@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/machinae/webtool/agent"
 	"github.com/machinae/webtool/browser"
@@ -17,9 +18,22 @@ var rootCmd = &cobra.Command{
 	Short: "Fast CLI for your Chrome browser.",
 	Long:  "A fast, composable CLI tool that drives a Chrome browser via Chrome DevTools Protocol. Designed for agent-driven workflows.",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		agent.HomeDir = resolveHome()
 		client = agent.NewClientWithDataDir(resolveDataDir())
 		return client.EnsureRunning(cmd.Context())
 	},
+}
+
+// resolveHome returns the webtool home directory from WEBTOOL_HOME or ~/.webtool.
+func resolveHome() string {
+	if dir := os.Getenv("WEBTOOL_HOME"); dir != "" {
+		return dir
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(fmt.Sprintf("cannot determine home directory: %v. export $WEBTOOL_HOME to set", err))
+	}
+	return filepath.Join(home, ".webtool")
 }
 
 // resolveDataDir returns the Chrome data directory from the environment or OS default.

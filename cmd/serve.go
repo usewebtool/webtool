@@ -12,6 +12,7 @@ var serveCmd = &cobra.Command{
 	Hidden: true,
 	Args:   cobra.NoArgs,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		agent.HomeDir = resolveHome()
 		return nil // Skip root PersistentPreRunE — we are the daemon.
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
