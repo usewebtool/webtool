@@ -204,6 +204,58 @@ func TestFormatSnapshot(t *testing.T) {
 			},
 		},
 		{
+			name:  "link with url stripped of query params",
+			url:   "https://example.com",
+			title: "Test",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"link1", "link2"}},
+				{NodeID: "link1", ParentID: "root", Role: axVal("link"), Name: axVal("Search"), BackendDOMNodeID: 110,
+					Properties: []*proto.AccessibilityAXProperty{prop("url", axVal("https://example.com/search?q=foo&utm_source=bar"))}},
+				{NodeID: "link2", ParentID: "root", Role: axVal("link"), Name: axVal("About"), BackendDOMNodeID: 111,
+					Properties: []*proto.AccessibilityAXProperty{prop("url", axVal("https://example.com/about"))}},
+			},
+			contains: []string{
+				`[110] link "Search" url="https://example.com/search"`,
+				`[111] link "About" url="https://example.com/about"`,
+			},
+			excludes: []string{
+				"q=foo",
+				"utm_source",
+			},
+		},
+		{
+			name:  "selected tab and readonly input",
+			url:   "https://example.com",
+			title: "Test",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"tab1", "tab2", "input1"}},
+				{NodeID: "tab1", ParentID: "root", Role: axVal("tab"), Name: axVal("General"), BackendDOMNodeID: 120,
+					Properties: []*proto.AccessibilityAXProperty{prop("selected", axBoolVal(true))}},
+				{NodeID: "tab2", ParentID: "root", Role: axVal("tab"), Name: axVal("Advanced"), BackendDOMNodeID: 121},
+				{NodeID: "input1", ParentID: "root", Role: axVal("textbox"), Name: axVal("ID"), BackendDOMNodeID: 122,
+					Value:      axVal("abc-123"),
+					Properties: []*proto.AccessibilityAXProperty{prop("readonly", axBoolVal(true))}},
+			},
+			contains: []string{
+				`[120] tab "General" selected`,
+				`[121] tab "Advanced"`,
+				`[122] textbox "ID" value="abc-123" readonly`,
+			},
+		},
+		{
+			name:  "focused element",
+			url:   "https://example.com",
+			title: "Test",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"input1"}},
+				{NodeID: "input1", ParentID: "root", Role: axVal("textbox"), Name: axVal("Search"), BackendDOMNodeID: 130,
+					Properties: []*proto.AccessibilityAXProperty{prop("focused", axBoolVal(true))}},
+			},
+			contains: []string{
+				`[130] textbox "Search" focused`,
+			},
+		},
+		{
 			name:  "img with alt text shown, without alt text hidden",
 			url:   "https://example.com",
 			title: "Test",

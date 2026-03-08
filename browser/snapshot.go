@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/go-rod/rod/lib/proto"
@@ -240,15 +241,29 @@ func formatNode(buf *strings.Builder, node *proto.AccessibilityAXNode, role, nam
 		fmt.Fprintf(buf, " value=%q", val)
 	}
 
+	// URL for links (stripped of query params to save tokens).
+	if linkURL := nodeProperty(node, "url"); linkURL != "" {
+		fmt.Fprintf(buf, " url=%q", stripQueryString(linkURL))
+	}
+
 	// State flags
+	if nodePropertyBool(node, "focused") {
+		buf.WriteString(" focused")
+	}
 	if nodePropertyBool(node, "checked") {
 		buf.WriteString(" checked")
 	}
 	if nodePropertyBool(node, "disabled") {
 		buf.WriteString(" disabled")
 	}
+	if nodePropertyBool(node, "readonly") {
+		buf.WriteString(" readonly")
+	}
 	if nodePropertyBool(node, "required") {
 		buf.WriteString(" required")
+	}
+	if nodePropertyBool(node, "selected") {
+		buf.WriteString(" selected")
 	}
 	if nodePropertyBool(node, "expanded") {
 		buf.WriteString(" expanded")
@@ -278,4 +293,15 @@ func nodeProperty(node *proto.AccessibilityAXNode, name proto.AccessibilityAXPro
 // nodePropertyBool returns true if a named boolean property is "true".
 func nodePropertyBool(node *proto.AccessibilityAXNode, name proto.AccessibilityAXPropertyName) bool {
 	return nodeProperty(node, name) == "true"
+}
+
+// stripQueryString removes the query string and fragment from a URL.
+func stripQueryString(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String()
 }
