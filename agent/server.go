@@ -82,6 +82,9 @@ func (s *Server) Start() error {
 	s.logger.Printf("daemon started (pid %d), listening on %s", pid, s.socketFile())
 	// Blocks until Shutdown() is called (from /stop handler or signal handler).
 	err = s.srv.Serve(ln)
+
+	s.cleanup()
+
 	// Serve returns ErrServerClosed on graceful shutdown — not a real error.
 	if err == http.ErrServerClosed {
 		err = nil
@@ -89,16 +92,19 @@ func (s *Server) Start() error {
 	return err
 }
 
-// Shutdown gracefully stops the server, closes the browser, and removes runtime files.
+// Shutdown gracefully stops the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	if s.srv != nil {
-		s.srv.Shutdown(ctx)
+		return s.srv.Shutdown(ctx)
 	}
-	err := s.browser.Close()
+	return nil
+}
+
+func (s *Server) cleanup() {
+	s.browser.Close()
 	os.Remove(s.socketFile())
 	os.Remove(s.pidFile())
 	s.logger.Println("daemon stopped")
-	return err
 }
 
 func (s *Server) socketFile() string {

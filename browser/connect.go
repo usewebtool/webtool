@@ -62,13 +62,11 @@ func (b *Browser) resolveWSUrl() error {
 }
 
 // Close disconnects from Chrome without closing it.
+// We do not call rod.Close() because it sends Browser.close which kills Chrome.
+// The WebSocket connection drops naturally when the process exits.
 func (b *Browser) Close() error {
-	if b.rod == nil {
-		return nil
-	}
-	err := b.rod.Close()
 	b.rod = nil
-	return err
+	return nil
 }
 
 // IsConnected returns true if the browser has an active connection.
