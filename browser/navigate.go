@@ -26,7 +26,7 @@ func (b *Browser) Open(ctx context.Context, url string) error {
 		return err
 	}
 
-	page, err := b.activePage(ctx)
+	page, err := b.activePage()
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func (b *Browser) Tabs(ctx context.Context) ([]Tab, error) {
 		return nil, err
 	}
 
-	pages, err := b.rod.Context(ctx).Pages()
+	pages, err := b.rod.Pages()
 	if err != nil {
 		return nil, fmt.Errorf("listing pages: %w", err)
 	}
@@ -58,7 +58,7 @@ func (b *Browser) Tabs(ctx context.Context) ([]Tab, error) {
 	for _, p := range pages {
 		info, err := p.Context(ctx).Info()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("getting page info: %w", err)
 		}
 		tabs = append(tabs, Tab{
 			ID:    string(p.TargetID),
@@ -71,16 +71,16 @@ func (b *Browser) Tabs(ctx context.Context) ([]Tab, error) {
 }
 
 // activePage returns the page for the saved TargetID, or the first available page.
-func (b *Browser) activePage(ctx context.Context) (*rod.Page, error) {
+func (b *Browser) activePage() (*rod.Page, error) {
 	if b.TargetID != "" {
-		page, err := b.rod.Context(ctx).PageFromTarget(proto.TargetTargetID(b.TargetID))
+		page, err := b.rod.PageFromTarget(proto.TargetTargetID(b.TargetID))
 		if err == nil {
 			return page, nil
 		}
 		// Stale target — fall through to first page.
 	}
 
-	pages, err := b.rod.Context(ctx).Pages()
+	pages, err := b.rod.Pages()
 	if err != nil {
 		return nil, fmt.Errorf("listing pages: %w", err)
 	}
