@@ -1,16 +1,19 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -75,7 +78,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /key", s.handleKey)
 	mux.HandleFunc("POST /stop", s.handleStop)
 
-	s.srv = &http.Server{Handler: mux}
+	s.srv = &http.Server{Handler: s.withLogging(mux)}
 
 	// Shut down on SIGTERM/SIGINT.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
@@ -132,6 +135,43 @@ func (s *Server) socketFile() string {
 
 func (s *Server) pidFile() string {
 	return s.dir + "/agent.pid"
+}
+
+// withLogging wraps a handler to log every request in a compact format.
+func (s *Server) withLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cmd := strings.TrimPrefix(r.URL.Path, "/")
+		if cmd == "health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if r.Body != nil && r.ContentLength > 0 {
+			body, err := io.ReadAll(r.Body)
+			r.Body.Close()
+			if err != nil {
+				s.logger.Printf("%s (error reading body: %v)", cmd, err)
+			} else {
+				r.Body = io.NopCloser(bytes.NewReader(body))
+				s.logger.Println(cmd, formatParams(body))
+			}
+		} else {
+			s.logger.Println(cmd)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// formatParams formats a JSON body as key=value pairs.
+func formatParams(body []byte) string {
+	var m map[string]any
+	if json.Unmarshal(body, &m) != nil {
+		return string(body)
+	}
+	var parts []string
+	for k, v := range m {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+	}
+	return strings.Join(parts, " ")
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
