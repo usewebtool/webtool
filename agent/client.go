@@ -153,6 +153,15 @@ func (c *Client) Click(ctx context.Context, selector string) error {
 	return resp.Err()
 }
 
+// Type types text into an element identified by selector (backendNodeId, CSS, or XPath).
+func (c *Client) Type(ctx context.Context, selector string, text string) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/type", TypeRequest{Selector: selector, Text: text}, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
 // Snapshot returns a text snapshot of the current page's interactive elements.
 func (c *Client) Snapshot(ctx context.Context) (string, error) {
 	var resp SnapshotResponse

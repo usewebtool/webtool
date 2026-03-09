@@ -38,6 +38,12 @@ type ClickRequest struct {
 	Selector string `json:"selector"`
 }
 
+// TypeRequest is the request body for the /type endpoint.
+type TypeRequest struct {
+	Selector string `json:"selector"`
+	Text     string `json:"text"`
+}
+
 // SnapshotResponse is the response for the /snapshot endpoint.
 type SnapshotResponse struct {
 	Response
