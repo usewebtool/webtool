@@ -44,6 +44,11 @@ type TypeRequest struct {
 	Text     string `json:"text"`
 }
 
+// KeyRequest is the request body for the /key endpoint.
+type KeyRequest struct {
+	Name string `json:"name"`
+}
+
 // SnapshotResponse is the response for the /snapshot endpoint.
 type SnapshotResponse struct {
 	Response

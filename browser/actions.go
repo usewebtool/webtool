@@ -3,10 +3,33 @@ package browser
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/proto"
 )
+
+// keyMap maps lowercase key names to Rod's input.Key constants. The CLI
+// argument is lowercased before lookup, so "Enter", "enter", and "ENTER"
+// all work. Key names follow the Playwright/W3C naming convention.
+var keyMap = map[string]input.Key{
+	"enter":      input.Enter,
+	"escape":     input.Escape,
+	"tab":        input.Tab,
+	"backspace":  input.Backspace,
+	"delete":     input.Delete,
+	"space":      input.Space,
+	"arrowup":    input.ArrowUp,
+	"arrowdown":  input.ArrowDown,
+	"arrowleft":  input.ArrowLeft,
+	"arrowright": input.ArrowRight,
+	"home":       input.Home,
+	"end":        input.End,
+	"pageup":     input.PageUp,
+	"pagedown":   input.PageDown,
+	"return":     input.Enter,
+}
 
 // stableQuietPeriod is the duration an element's position and size must remain
 // unchanged before it is considered stable. This ensures animations, layout
@@ -82,6 +105,32 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 
 	if err := el.Input(text); err != nil {
 		return fmt.Errorf("typing text: %w", err)
+	}
+
+	return nil
+}
+
+// Key sends a single key press to the active page. The key name is
+// case-insensitive and follows Playwright/W3C naming (e.g. "Enter",
+// "ArrowDown", "Escape"). This dispatches real keyDown/keyUp CDP events,
+// unlike Type which uses insertText.
+func (b *Browser) Key(ctx context.Context, name string) error {
+	if err := b.Connect(); err != nil {
+		return err
+	}
+
+	key, ok := keyMap[strings.ToLower(name)]
+	if !ok {
+		return fmt.Errorf("unknown key %q", name)
+	}
+
+	page, err := b.activePage()
+	if err != nil {
+		return err
+	}
+
+	if err := page.Context(ctx).Keyboard.Press(key); err != nil {
+		return fmt.Errorf("pressing key %q: %w", name, err)
 	}
 
 	return nil

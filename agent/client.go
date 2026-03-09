@@ -153,6 +153,15 @@ func (c *Client) Click(ctx context.Context, selector string) error {
 	return resp.Err()
 }
 
+// Key sends a single key press (e.g. "Enter", "Escape", "Tab").
+func (c *Client) Key(ctx context.Context, name string) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/key", KeyRequest{Name: name}, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
 // Type types text into an element identified by selector (backendNodeId, CSS, or XPath).
 func (c *Client) Type(ctx context.Context, selector string, text string) error {
 	var resp Response

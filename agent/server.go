@@ -70,6 +70,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /snapshot", s.handleSnapshot)
 	mux.HandleFunc("POST /click", s.handleClick)
 	mux.HandleFunc("POST /type", s.handleType)
+	mux.HandleFunc("POST /key", s.handleKey)
 	mux.HandleFunc("POST /stop", s.handleStop)
 
 	s.srv = &http.Server{Handler: mux}
@@ -197,6 +198,27 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 
 	if err := s.browser.Click(r.Context(), req.Selector); err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, Response{})
+}
+
+func (s *Server) handleKey(w http.ResponseWriter, r *http.Request) {
+	var req KeyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, Response{Error: fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+	if req.Name == "" {
+		writeJSON(w, http.StatusBadRequest, Response{Error: "name is required"})
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.browser.Key(r.Context(), req.Name); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
