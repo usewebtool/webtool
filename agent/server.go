@@ -13,18 +13,20 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/machinae/webtool/browser"
 )
 
 // Server is the daemon that holds the Chrome connection and serves HTTP requests.
 type Server struct {
-	browser *browser.Browser
-	mu      sync.Mutex
-	srv     *http.Server
-	logger  *log.Logger
-	dir     string     // runtime directory; defaults to runtimeDir(), overridable for tests
-	err     chan error // buffered 1; receives Connect result, then closed
+	browser    *browser.Browser
+	mu         sync.Mutex
+	srv        *http.Server
+	logger     *log.Logger
+	dir        string        // runtime directory; defaults to runtimeDir(), overridable for tests
+	ready      chan struct{} // closed when Connect() completes (success or failure)
+	connectErr error         // set before ready is closed; read-only after
 }
 
 // NewServer creates a daemon server with the given browser.
@@ -33,7 +35,7 @@ func NewServer(b *browser.Browser) *Server {
 		browser: b,
 		logger:  log.New(os.Stderr, "", log.LstdFlags),
 		dir:     runtimeDir(b.ChromeDataDir),
-		err:     make(chan error, 1),
+		ready:   make(chan struct{}),
 	}
 }
 
@@ -85,15 +87,17 @@ func (s *Server) Start() error {
 		s.Shutdown(context.Background())
 	}()
 
-	// Connect to Chrome in background. /health blocks on s.err until this
+	// Connect to Chrome in background. /health blocks on s.ready until this
 	// completes, so the client gets the real error if Chrome rejects.
 	go func() {
-		err := s.browser.Connect()
-		s.err <- err
-		close(s.err)
-		if err != nil {
-			s.logger.Printf("chrome connection failed: %v", err)
-			s.Shutdown(context.Background())
+		s.connectErr = s.browser.Connect()
+		close(s.ready)
+		if s.connectErr != nil {
+			s.logger.Printf("chrome connection failed: %v", s.connectErr)
+			// Delay shutdown so the client can read the error from /health.
+			time.AfterFunc(1*time.Second, func() {
+				s.Shutdown(context.Background())
+			})
 		}
 	}()
 
@@ -131,8 +135,9 @@ func (s *Server) pidFile() string {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	if err := <-s.err; err != nil {
-		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+	<-s.ready
+	if s.connectErr != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: s.connectErr.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, Response{})
