@@ -8,6 +8,11 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
+// stableQuietPeriod is the duration an element's position and size must remain
+// unchanged before it is considered stable. This ensures animations, layout
+// shifts, and transitions have settled before acting on the element.
+const stableQuietPeriod = 500 * time.Millisecond
+
 // Click finds an element by selector and clicks it. The element is resolved
 // via resolveElement (backendNodeId, XPath, or CSS). Rod's built-in
 // actionability checks (scroll into view, hover, wait interactable, wait
@@ -30,7 +35,7 @@ func (b *Browser) Click(ctx context.Context, selector string) error {
 
 	el = el.Context(ctx)
 
-	if err := el.WaitStable(300 * time.Millisecond); err != nil {
+	if err := el.WaitStable(stableQuietPeriod); err != nil {
 		return fmt.Errorf("waiting for element stability: %w", err)
 	}
 
@@ -67,7 +72,7 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 
 	el = el.Context(ctx)
 
-	if err := el.WaitStable(300 * time.Millisecond); err != nil {
+	if err := el.WaitStable(stableQuietPeriod); err != nil {
 		return fmt.Errorf("waiting for element stability: %w", err)
 	}
 
