@@ -171,6 +171,18 @@ func (c *Client) Type(ctx context.Context, selector string, text string) error {
 	return resp.Err()
 }
 
+// Extract returns the content of an element or the full page as markdown or HTML.
+func (c *Client) Extract(ctx context.Context, selector string, asHTML bool) (string, error) {
+	var resp ExtractResponse
+	if err := c.do(ctx, "POST", "/extract", ExtractRequest{Selector: selector, AsHTML: asHTML}, &resp); err != nil {
+		return "", err
+	}
+	if err := resp.Err(); err != nil {
+		return "", err
+	}
+	return resp.Content, nil
+}
+
 // Snapshot returns a text snapshot of the current page's interactive elements.
 func (c *Client) Snapshot(ctx context.Context) (string, error) {
 	var resp SnapshotResponse

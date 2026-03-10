@@ -49,6 +49,18 @@ type KeyRequest struct {
 	Name string `json:"name"`
 }
 
+// ExtractRequest is the request body for the /extract endpoint.
+type ExtractRequest struct {
+	Selector string `json:"selector,omitempty"`
+	AsHTML   bool   `json:"as_html,omitempty"`
+}
+
+// ExtractResponse is the response for the /extract endpoint.
+type ExtractResponse struct {
+	Response
+	Content string `json:"content,omitempty"`
+}
+
 // SnapshotResponse is the response for the /snapshot endpoint.
 type SnapshotResponse struct {
 	Response

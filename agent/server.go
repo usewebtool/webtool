@@ -76,6 +76,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /click", s.handleClick)
 	mux.HandleFunc("POST /type", s.handleType)
 	mux.HandleFunc("POST /key", s.handleKey)
+	mux.HandleFunc("POST /extract", s.handleExtract)
 	mux.HandleFunc("POST /stop", s.handleStop)
 
 	s.srv = &http.Server{Handler: s.withLogging(mux)}
@@ -289,6 +290,24 @@ func (s *Server) handleType(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, Response{})
+}
+
+func (s *Server) handleExtract(w http.ResponseWriter, r *http.Request) {
+	var req ExtractRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, Response{Error: fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	content, err := s.browser.Extract(r.Context(), req.Selector, req.AsHTML)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, ExtractResponse{Content: content})
 }
 
 func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
