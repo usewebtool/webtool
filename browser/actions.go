@@ -173,6 +173,72 @@ func (b *Browser) Eval(ctx context.Context, js string) (string, error) {
 	return string(r.Type), nil
 }
 
+// Back navigates back in browser history and waits for the page to load.
+func (b *Browser) Back(ctx context.Context) error {
+	if err := b.Connect(); err != nil {
+		return err
+	}
+
+	page, err := b.activePage()
+	if err != nil {
+		return err
+	}
+
+	if err := page.Context(ctx).NavigateBack(); err != nil {
+		return fmt.Errorf("navigating back: %w", err)
+	}
+
+	if err := page.Context(ctx).WaitLoad(); err != nil {
+		return fmt.Errorf("waiting for page load: %w", err)
+	}
+
+	return nil
+}
+
+// Forward navigates forward in browser history and waits for the page to load.
+func (b *Browser) Forward(ctx context.Context) error {
+	if err := b.Connect(); err != nil {
+		return err
+	}
+
+	page, err := b.activePage()
+	if err != nil {
+		return err
+	}
+
+	if err := page.Context(ctx).NavigateForward(); err != nil {
+		return fmt.Errorf("navigating forward: %w", err)
+	}
+
+	if err := page.Context(ctx).WaitLoad(); err != nil {
+		return fmt.Errorf("waiting for page load: %w", err)
+	}
+
+	return nil
+}
+
+// Reload reloads the current page and waits for it to load.
+func (b *Browser) Reload(ctx context.Context) error {
+	if err := b.Connect(); err != nil {
+		return err
+	}
+
+	page, err := b.activePage()
+	if err != nil {
+		return err
+	}
+
+	if err := page.Context(ctx).Reload(); err != nil {
+		return fmt.Errorf("reloading page: %w", err)
+	}
+
+	if err := page.Context(ctx).WaitLoad(); err != nil {
+		return fmt.Errorf("waiting for page load: %w", err)
+	}
+
+	return nil
+}
+
 // Key sends a single key press to the active page. The key name is
 // case-insensitive and follows Playwright/W3C naming (e.g. "Enter",
 // "ArrowDown", "Escape"). This dispatches real keyDown/keyUp CDP events,

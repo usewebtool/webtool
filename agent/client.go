@@ -183,6 +183,33 @@ func (c *Client) Extract(ctx context.Context, selector string, asHTML bool) (str
 	return resp.Content, nil
 }
 
+// Back navigates back in browser history.
+func (c *Client) Back(ctx context.Context) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/back", nil, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
+// Forward navigates forward in browser history.
+func (c *Client) Forward(ctx context.Context) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/forward", nil, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
+// Reload reloads the current page.
+func (c *Client) Reload(ctx context.Context) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/reload", nil, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
 // Eval executes JavaScript in the page and returns the result.
 func (c *Client) Eval(ctx context.Context, js string) (string, error) {
 	var resp EvalResponse
