@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
@@ -43,25 +44,28 @@ func (b *Browser) Open(ctx context.Context, url string) error {
 	return nil
 }
 
-// Tabs returns all open browser tabs.
+// Tabs returns all open browser tabs, filtering out DevTools and other non-page targets.
 func (b *Browser) Tabs(ctx context.Context) ([]Tab, error) {
 	if err := b.Connect(); err != nil {
 		return nil, err
 	}
 
-	pages, err := b.rod.Pages()
+	all, err := b.rod.Pages()
 	if err != nil {
 		return nil, fmt.Errorf("listing pages: %w", err)
 	}
 
-	tabs := make([]Tab, 0, len(pages))
-	for i, p := range pages {
+	tabs := make([]Tab, 0, len(all))
+	for _, p := range all {
 		info, err := p.Context(ctx).Info()
 		if err != nil {
 			return nil, fmt.Errorf("getting page info: %w", err)
 		}
+		if !isUserTab(info) {
+			continue
+		}
 		tabs = append(tabs, Tab{
-			Index: i + 1,
+			Index: len(tabs) + 1,
 			Title: info.Title,
 			URL:   info.URL,
 		})
@@ -76,9 +80,9 @@ func (b *Browser) Switch(ctx context.Context, index int) error {
 		return err
 	}
 
-	pages, err := b.rod.Pages()
+	pages, err := b.pageTargets(ctx)
 	if err != nil {
-		return fmt.Errorf("listing pages: %w", err)
+		return err
 	}
 
 	if index < 1 || index > len(pages) {
@@ -113,4 +117,39 @@ func (b *Browser) activePage() (*rod.Page, error) {
 	}
 
 	return pages[0], nil
+}
+
+// pageTargets returns only "page" type targets, filtering out DevTools, extensions, etc.
+func (b *Browser) pageTargets(ctx context.Context) ([]*rod.Page, error) {
+	all, err := b.rod.Pages()
+	if err != nil {
+		return nil, fmt.Errorf("listing pages: %w", err)
+	}
+
+	pages := make([]*rod.Page, 0, len(all))
+	for _, p := range all {
+		info, err := p.Context(ctx).Info()
+		if err != nil {
+			return nil, fmt.Errorf("getting page info: %w", err)
+		}
+		if isUserTab(info) {
+			pages = append(pages, p)
+		}
+	}
+
+	return pages, nil
+}
+
+// isUserTab returns true if the target is a user-visible tab (web pages and extension pages).
+// Excludes DevTools, about:, and chrome:// internal pages.
+func isUserTab(info *proto.TargetTargetInfo) bool {
+	if info.Type != proto.TargetTargetInfoTypePage {
+		return false
+	}
+	if strings.HasPrefix(info.URL, "devtools://") ||
+		strings.HasPrefix(info.URL, "about:") ||
+		strings.HasPrefix(info.URL, "chrome://") {
+		return false
+	}
+	return true
 }
