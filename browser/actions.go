@@ -108,6 +108,10 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 		return &ErrNotInteractable{Sel: selector, Reason: "not stable"}
 	}
 
+	if _, err := el.WaitInteractable(); err != nil {
+		return &ErrNotInteractable{Sel: selector, Reason: "not interactable"}
+	}
+
 	disabled, err := el.Disabled()
 	if err != nil {
 		return fmt.Errorf("checking disabled state: %w", err)
