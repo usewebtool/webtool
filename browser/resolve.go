@@ -32,3 +32,39 @@ func resolveElement(ctx context.Context, page *rod.Page, selector string) (*rod.
 
 	return page.Context(ctx).Element(selector)
 }
+
+// resolveElementNow finds an element immediately without retrying. Returns nil
+// if the element does not exist right now. Uses rod's Has/HasX which check once
+// and return, unlike Element/ElementX which retry until the context expires.
+func resolveElementNow(ctx context.Context, page *rod.Page, selector string) (*rod.Element, error) {
+	id, err := strconv.Atoi(selector)
+	if err == nil {
+		el, err := page.Context(ctx).ElementFromNode(&proto.DOMNode{
+			BackendNodeID: proto.DOMBackendNodeID(id),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("node %d not found: %w", id, err)
+		}
+		return el, nil
+	}
+
+	if strings.HasPrefix(selector, "/") {
+		has, el, err := page.Context(ctx).HasX(selector)
+		if err != nil {
+			return nil, err
+		}
+		if !has {
+			return nil, fmt.Errorf("element not found: %s", selector)
+		}
+		return el, nil
+	}
+
+	has, el, err := page.Context(ctx).Has(selector)
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		return nil, fmt.Errorf("element not found: %s", selector)
+	}
+	return el, nil
+}
