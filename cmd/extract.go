@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -15,7 +16,7 @@ var (
 
 var extractCmd = &cobra.Command{
 	Use:   "extract [selector]",
-	Short: "Extract page content as markdown (or HTML with --html).",
+	Short: "Extract page content as markdown (or HTML with --html). Default timeout 1s.",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		selector := ""
@@ -32,7 +33,15 @@ var extractCmd = &cobra.Command{
 			selector = "main, [role='main']"
 		}
 
-		ctx, cancel := context.WithTimeout(cmd.Context(), timeoutFlag)
+		// Default to 1s for extract instead of the global 30s. CSS/XPath
+		// selectors retry until the context expires, and 30s is too long
+		// to wait on a typo. The user can still override with --timeout.
+		timeout := timeoutFlag
+		if !cmd.Flags().Changed("timeout") {
+			timeout = 1 * time.Second
+		}
+
+		ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 		defer cancel()
 
 		content, err := client.Extract(ctx, selector, extractHTML)
