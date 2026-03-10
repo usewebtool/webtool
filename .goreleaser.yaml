@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+
+version: 2
+
+project_name: webtool
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    binary: webtool
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}-
+      {{- .Os }}-
+      {{- .Arch }}
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  disable: true
