@@ -13,6 +13,9 @@ builds:
     binary: webtool
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -X github.com/machinae/webtool/cmd.Version={{ .Version }}
+      - -X github.com/machinae/webtool/cmd.Commit={{ .ShortCommit }}
     goos:
       - linux
       - darwin
