@@ -54,13 +54,21 @@ func (b *Browser) Click(ctx context.Context, selector string) error {
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
-		return fmt.Errorf("resolving element %q: %w", selector, err)
+		return err
 	}
 
 	el = el.Context(ctx)
 
 	if err := el.WaitStable(stableQuietPeriod); err != nil {
-		return fmt.Errorf("waiting for element stability: %w", err)
+		return &ErrNotInteractable{Sel: selector, Reason: "not stable"}
+	}
+
+	disabled, err := el.Disabled()
+	if err != nil {
+		return fmt.Errorf("checking disabled state: %w", err)
+	}
+	if disabled {
+		return &ErrNotEnabled{Sel: selector}
 	}
 
 	if err := el.Click(proto.InputMouseButtonLeft, 1); err != nil {
@@ -91,13 +99,21 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
-		return fmt.Errorf("resolving element %q: %w", selector, err)
+		return err
 	}
 
 	el = el.Context(ctx)
 
 	if err := el.WaitStable(stableQuietPeriod); err != nil {
-		return fmt.Errorf("waiting for element stability: %w", err)
+		return &ErrNotInteractable{Sel: selector, Reason: "not stable"}
+	}
+
+	disabled, err := el.Disabled()
+	if err != nil {
+		return fmt.Errorf("checking disabled state: %w", err)
+	}
+	if disabled {
+		return &ErrNotEnabled{Sel: selector}
 	}
 
 	if err := el.SelectAllText(); err != nil {
@@ -126,7 +142,7 @@ func (b *Browser) Select(ctx context.Context, selector string, value string) err
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
-		return fmt.Errorf("resolving element %q: %w", selector, err)
+		return err
 	}
 
 	el = el.Context(ctx)
