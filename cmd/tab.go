@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var switchCmd = &cobra.Command{
-	Use:   "switch <index>",
+var tabCmd = &cobra.Command{
+	Use:   "tab <index>",
 	Short: "Switch to a tab by its index (from webtool tabs).",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -29,5 +29,5 @@ var switchCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(switchCmd)
+	rootCmd.AddCommand(tabCmd)
 }
