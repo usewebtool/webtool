@@ -153,6 +153,7 @@ func (b *Browser) Eval(ctx context.Context, js string) (string, error) {
 
 	result, err := proto.RuntimeEvaluate{
 		Expression:   js,
+		ReplMode:     true,
 		AwaitPromise: true,
 	}.Call(page.Context(ctx))
 	if err != nil {
@@ -160,6 +161,9 @@ func (b *Browser) Eval(ctx context.Context, js string) (string, error) {
 	}
 
 	if result.ExceptionDetails != nil {
+		if result.ExceptionDetails.Exception != nil && result.ExceptionDetails.Exception.Description != "" {
+			return "", fmt.Errorf("JS error: %s", result.ExceptionDetails.Exception.Description)
+		}
 		return "", fmt.Errorf("JS error: %s", result.ExceptionDetails.Text)
 	}
 
