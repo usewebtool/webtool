@@ -9,7 +9,7 @@ import (
 
 var evalCmd = &cobra.Command{
 	Use:   "eval <js>",
-	Short: "Execute JavaScript in the page and print the result.",
+	Short: "Execute a JavaScript expression and print the result.",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		result, err := client.Eval(cmd.Context(), args[0])

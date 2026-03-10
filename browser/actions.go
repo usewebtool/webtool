@@ -151,30 +151,17 @@ func (b *Browser) Eval(ctx context.Context, js string) (string, error) {
 		return "", err
 	}
 
-	result, err := proto.RuntimeEvaluate{
-		Expression:   js,
-		ReplMode:     true,
-		AwaitPromise: true,
-	}.Call(page.Context(ctx))
+	// Rod expects a function definition — it calls .apply() on the expression.
+	// Wrap in an async arrow function so arbitrary expressions work and
+	// top-level await is supported. Rod handles context cancellation and
+	// promise awaiting natively via ByPromise().
+	wrapped := fmt.Sprintf("async () => { return (%s); }", js)
+	result, err := page.Context(ctx).Eval(wrapped)
 	if err != nil {
 		return "", fmt.Errorf("evaluating JS: %w", err)
 	}
 
-	if result.ExceptionDetails != nil {
-		if result.ExceptionDetails.Exception != nil && result.ExceptionDetails.Exception.Description != "" {
-			return "", fmt.Errorf("JS error: %s", result.ExceptionDetails.Exception.Description)
-		}
-		return "", fmt.Errorf("JS error: %s", result.ExceptionDetails.Text)
-	}
-
-	r := result.Result
-	if v := r.Value.String(); v != "" {
-		return v, nil
-	}
-	if r.Description != "" {
-		return r.Description, nil
-	}
-	return string(r.Type), nil
+	return result.Value.String(), nil
 }
 
 // Back navigates back in browser history and waits for the page to load.
