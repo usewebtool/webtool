@@ -61,6 +61,11 @@ type ExtractResponse struct {
 	Content string `json:"content,omitempty"`
 }
 
+// SwitchRequest is the request body for the /switch endpoint.
+type SwitchRequest struct {
+	Index int `json:"index"`
+}
+
 // SnapshotResponse is the response for the /snapshot endpoint.
 type SnapshotResponse struct {
 	Response

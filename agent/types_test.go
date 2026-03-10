@@ -28,7 +28,7 @@ func TestResponseErrNonEmpty(t *testing.T) {
 func TestTabsResponseJSON(t *testing.T) {
 	resp := TabsResponse{
 		Tabs: []browser.Tab{
-			{ID: "abc", Title: "Example", URL: "https://example.com"},
+			{Index: 1, Title: "Example", URL: "https://example.com"},
 		},
 	}
 
@@ -45,8 +45,8 @@ func TestTabsResponseJSON(t *testing.T) {
 	if len(decoded.Tabs) != 1 {
 		t.Fatalf("expected 1 tab, got %d", len(decoded.Tabs))
 	}
-	if decoded.Tabs[0].ID != "abc" {
-		t.Errorf("tab ID: got %q, want %q", decoded.Tabs[0].ID, "abc")
+	if decoded.Tabs[0].Index != 1 {
+		t.Errorf("tab Index: got %d, want %d", decoded.Tabs[0].Index, 1)
 	}
 	if decoded.Err() != nil {
 		t.Errorf("expected nil error, got %v", decoded.Err())

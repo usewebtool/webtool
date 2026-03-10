@@ -10,8 +10,8 @@ import (
 
 // Tab represents an open browser tab.
 type Tab struct {
-	// ID is the CDP target ID.
-	ID string `json:"id"`
+	// Index is the 1-based position in the tab list.
+	Index int `json:"index"`
 	// Title is the page title.
 	Title string `json:"title"`
 	// URL is the page URL.
@@ -55,19 +55,43 @@ func (b *Browser) Tabs(ctx context.Context) ([]Tab, error) {
 	}
 
 	tabs := make([]Tab, 0, len(pages))
-	for _, p := range pages {
+	for i, p := range pages {
 		info, err := p.Context(ctx).Info()
 		if err != nil {
 			return nil, fmt.Errorf("getting page info: %w", err)
 		}
 		tabs = append(tabs, Tab{
-			ID:    string(p.TargetID),
+			Index: i + 1,
 			Title: info.Title,
 			URL:   info.URL,
 		})
 	}
 
 	return tabs, nil
+}
+
+// Switch activates the tab at the given 1-based index and sets it as the active page.
+func (b *Browser) Switch(ctx context.Context, index int) error {
+	if err := b.Connect(); err != nil {
+		return err
+	}
+
+	pages, err := b.rod.Pages()
+	if err != nil {
+		return fmt.Errorf("listing pages: %w", err)
+	}
+
+	if index < 1 || index > len(pages) {
+		return fmt.Errorf("tab %d out of range (have %d tabs)", index, len(pages))
+	}
+
+	page := pages[index-1]
+	if _, err := page.Context(ctx).Activate(); err != nil {
+		return fmt.Errorf("activating tab: %w", err)
+	}
+
+	b.TargetID = string(page.TargetID)
+	return nil
 }
 
 // activePage returns the page for the saved TargetID, or the first available page.

@@ -18,7 +18,7 @@ var tabsCmd = &cobra.Command{
 			os.Exit(2)
 		}
 		for _, t := range tabs {
-			fmt.Printf("%s %s %s\n", t.ID, t.Title, t.URL)
+			fmt.Printf("%d %s %s\n", t.Index, t.Title, t.URL)
 		}
 		return nil
 	},

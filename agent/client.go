@@ -183,6 +183,15 @@ func (c *Client) Extract(ctx context.Context, selector string, asHTML bool) (str
 	return resp.Content, nil
 }
 
+// Switch activates the tab at the given 1-based index.
+func (c *Client) Switch(ctx context.Context, index int) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/switch", SwitchRequest{Index: index}, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
 // Snapshot returns a text snapshot of the current page's interactive elements.
 func (c *Client) Snapshot(ctx context.Context) (string, error) {
 	var resp SnapshotResponse
