@@ -61,6 +61,17 @@ type ExtractResponse struct {
 	Content string `json:"content,omitempty"`
 }
 
+// EvalRequest is the request body for the /eval endpoint.
+type EvalRequest struct {
+	JS string `json:"js"`
+}
+
+// EvalResponse is the response for the /eval endpoint.
+type EvalResponse struct {
+	Response
+	Result string `json:"result,omitempty"`
+}
+
 // SelectRequest is the request body for the /select endpoint.
 type SelectRequest struct {
 	Selector string `json:"selector"`

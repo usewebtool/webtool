@@ -138,6 +138,41 @@ func (b *Browser) Select(ctx context.Context, selector string, value string) err
 	return nil
 }
 
+// Eval executes a JavaScript expression in the page and returns the result.
+// Uses CDP Runtime.evaluate directly (like the Chrome console) so any
+// expression works, not just function bodies.
+func (b *Browser) Eval(ctx context.Context, js string) (string, error) {
+	if err := b.Connect(); err != nil {
+		return "", err
+	}
+
+	page, err := b.activePage()
+	if err != nil {
+		return "", err
+	}
+
+	result, err := proto.RuntimeEvaluate{
+		Expression:   js,
+		AwaitPromise: true,
+	}.Call(page.Context(ctx))
+	if err != nil {
+		return "", fmt.Errorf("evaluating JS: %w", err)
+	}
+
+	if result.ExceptionDetails != nil {
+		return "", fmt.Errorf("JS error: %s", result.ExceptionDetails.Text)
+	}
+
+	r := result.Result
+	if v := r.Value.String(); v != "" {
+		return v, nil
+	}
+	if r.Description != "" {
+		return r.Description, nil
+	}
+	return string(r.Type), nil
+}
+
 // Key sends a single key press to the active page. The key name is
 // case-insensitive and follows Playwright/W3C naming (e.g. "Enter",
 // "ArrowDown", "Escape"). This dispatches real keyDown/keyUp CDP events,

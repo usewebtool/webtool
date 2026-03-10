@@ -183,6 +183,18 @@ func (c *Client) Extract(ctx context.Context, selector string, asHTML bool) (str
 	return resp.Content, nil
 }
 
+// Eval executes JavaScript in the page and returns the result.
+func (c *Client) Eval(ctx context.Context, js string) (string, error) {
+	var resp EvalResponse
+	if err := c.do(ctx, "POST", "/eval", EvalRequest{JS: js}, &resp); err != nil {
+		return "", err
+	}
+	if err := resp.Err(); err != nil {
+		return "", err
+	}
+	return resp.Result, nil
+}
+
 // Select selects a dropdown option by visible text.
 func (c *Client) Select(ctx context.Context, selector string, value string) error {
 	var resp Response

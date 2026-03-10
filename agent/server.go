@@ -76,6 +76,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /click", s.handleClick)
 	mux.HandleFunc("POST /type", s.handleType)
 	mux.HandleFunc("POST /key", s.handleKey)
+	mux.HandleFunc("POST /eval", s.handleEval)
 	mux.HandleFunc("POST /select", s.handleSelect)
 	mux.HandleFunc("POST /extract", s.handleExtract)
 	mux.HandleFunc("POST /switch", s.handleSwitch)
@@ -292,6 +293,28 @@ func (s *Server) handleType(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, Response{})
+}
+
+func (s *Server) handleEval(w http.ResponseWriter, r *http.Request) {
+	var req EvalRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, Response{Error: fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+	if req.JS == "" {
+		writeJSON(w, http.StatusBadRequest, Response{Error: "js is required"})
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	result, err := s.browser.Eval(r.Context(), req.JS)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, EvalResponse{Result: result})
 }
 
 func (s *Server) handleSelect(w http.ResponseWriter, r *http.Request) {
