@@ -183,6 +183,15 @@ func (c *Client) Extract(ctx context.Context, selector string, asHTML bool) (str
 	return resp.Content, nil
 }
 
+// Select selects a dropdown option by visible text.
+func (c *Client) Select(ctx context.Context, selector string, value string) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/select", SelectRequest{Selector: selector, Value: value}, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
 // Switch activates the tab at the given 1-based index.
 func (c *Client) Switch(ctx context.Context, index int) error {
 	var resp Response

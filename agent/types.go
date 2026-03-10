@@ -61,6 +61,12 @@ type ExtractResponse struct {
 	Content string `json:"content,omitempty"`
 }
 
+// SelectRequest is the request body for the /select endpoint.
+type SelectRequest struct {
+	Selector string `json:"selector"`
+	Value    string `json:"value"`
+}
+
 // SwitchRequest is the request body for the /switch endpoint.
 type SwitchRequest struct {
 	Index int `json:"index"`

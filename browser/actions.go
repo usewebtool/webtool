@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/proto"
 )
@@ -105,6 +106,33 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 
 	if err := el.Input(text); err != nil {
 		return fmt.Errorf("typing text: %w", err)
+	}
+
+	return nil
+}
+
+// Select finds a <select> element by selector and selects the option matching
+// the given visible text. Uses rod's built-in Element.Select which handles
+// scrolling into view, waiting for visibility, and dispatching change events.
+func (b *Browser) Select(ctx context.Context, selector string, value string) error {
+	if err := b.Connect(); err != nil {
+		return err
+	}
+
+	page, err := b.activePage()
+	if err != nil {
+		return err
+	}
+
+	el, err := resolveElement(ctx, page, selector)
+	if err != nil {
+		return fmt.Errorf("resolving element %q: %w", selector, err)
+	}
+
+	el = el.Context(ctx)
+
+	if err := el.Select([]string{value}, true, rod.SelectorTypeText); err != nil {
+		return fmt.Errorf("selecting option %q: %w", value, err)
 	}
 
 	return nil
