@@ -37,6 +37,41 @@ var keyMap = map[string]input.Key{
 // shifts, and transitions have settled before acting on the element.
 const stableQuietPeriod = 500 * time.Millisecond
 
+// PageSettleTimeout is the maximum time to wait for the DOM to settle
+// after a mutation action (click, type, select). If the page is still changing
+// after this duration, we return success anyway — the action already happened,
+// and the agent's next snapshot will reflect whatever state the page is in.
+var PageSettleTimeout = 3 * time.Second
+
+// pageSettleTick is the interval between DOM snapshot comparisons
+// during post-action stabilization.
+const pageSettleTick = 500 * time.Millisecond
+
+// pageSettleDiff is the maximum percentage of DOM change (0.0–1.0)
+// considered "stable." 0.01 = 1% change tolerance, which ignores noise like
+// timestamps and cursor blinks while catching meaningful re-renders.
+const pageSettleDiff = 0.01
+
+// waitPageSettle waits for the DOM to stabilize after a mutation action.
+// Timeout errors are silently ignored — they mean the page is still busy,
+// not that the action failed.
+func waitPageSettle(ctx context.Context, page *rod.Page) {
+	waitCtx, cancel := context.WithTimeout(ctx, PageSettleTimeout)
+	defer cancel()
+	_ = page.Context(waitCtx).WaitDOMStable(pageSettleTick, pageSettleDiff)
+}
+
+// waitForLoad waits for the page load event, then waits for the DOM to settle.
+// Used after navigations (open, back, forward, reload) where the page loads
+// new content and JS may still be rendering after the load event fires.
+func waitForLoad(ctx context.Context, page *rod.Page) error {
+	if err := page.Context(ctx).WaitLoad(); err != nil {
+		return fmt.Errorf("waiting for page load: %w", err)
+	}
+	waitPageSettle(ctx, page)
+	return nil
+}
+
 // Click finds an element by selector and clicks it. The element is resolved
 // via resolveElement (backendNodeId, XPath, or CSS). Rod's built-in
 // actionability checks (scroll into view, hover, wait interactable, wait
@@ -75,6 +110,7 @@ func (b *Browser) Click(ctx context.Context, selector string) error {
 		return fmt.Errorf("clicking element: %w", err)
 	}
 
+	waitPageSettle(ctx, page)
 	return nil
 }
 
@@ -128,6 +164,7 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 		return fmt.Errorf("typing text: %w", err)
 	}
 
+	waitPageSettle(ctx, page)
 	return nil
 }
 
@@ -155,6 +192,7 @@ func (b *Browser) Select(ctx context.Context, selector string, value string) err
 		return fmt.Errorf("selecting option %q: %w", value, err)
 	}
 
+	waitPageSettle(ctx, page)
 	return nil
 }
 
@@ -199,11 +237,7 @@ func (b *Browser) Back(ctx context.Context) error {
 		return fmt.Errorf("navigating back: %w", err)
 	}
 
-	if err := page.Context(ctx).WaitLoad(); err != nil {
-		return fmt.Errorf("waiting for page load: %w", err)
-	}
-
-	return nil
+	return waitForLoad(ctx, page)
 }
 
 // Forward navigates forward in browser history and waits for the page to load.
@@ -221,11 +255,7 @@ func (b *Browser) Forward(ctx context.Context) error {
 		return fmt.Errorf("navigating forward: %w", err)
 	}
 
-	if err := page.Context(ctx).WaitLoad(); err != nil {
-		return fmt.Errorf("waiting for page load: %w", err)
-	}
-
-	return nil
+	return waitForLoad(ctx, page)
 }
 
 // Reload reloads the current page and waits for it to load.
@@ -243,11 +273,7 @@ func (b *Browser) Reload(ctx context.Context) error {
 		return fmt.Errorf("reloading page: %w", err)
 	}
 
-	if err := page.Context(ctx).WaitLoad(); err != nil {
-		return fmt.Errorf("waiting for page load: %w", err)
-	}
-
-	return nil
+	return waitForLoad(ctx, page)
 }
 
 // Key sends a single key press to the active page. The key name is
@@ -273,5 +299,6 @@ func (b *Browser) Key(ctx context.Context, name string) error {
 		return fmt.Errorf("pressing key %q: %w", name, err)
 	}
 
+	waitPageSettle(ctx, page)
 	return nil
 }

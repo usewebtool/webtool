@@ -36,8 +36,8 @@ func (b *Browser) Open(ctx context.Context, url string) error {
 		return fmt.Errorf("navigating to %s: %w", url, err)
 	}
 
-	if err := page.Context(ctx).WaitLoad(); err != nil {
-		return fmt.Errorf("waiting for page load: %w", err)
+	if err := waitForLoad(ctx, page); err != nil {
+		return err
 	}
 
 	b.TargetID = string(page.TargetID)
