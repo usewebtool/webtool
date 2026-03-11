@@ -32,7 +32,12 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	os.Exit(m.Run())
+	code := m.Run()
+
+	// Stop the daemon so the test process can exit.
+	webtool("stop")
+
+	os.Exit(code)
 }
 
 // webtool runs the webtool binary with the given args and returns stdout+stderr and the exit code.
