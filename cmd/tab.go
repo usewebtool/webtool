@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -15,16 +14,9 @@ var tabCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		index, err := strconv.Atoi(args[0])
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "index must be an integer")
-			os.Exit(2)
+			return fmt.Errorf("index must be an integer")
 		}
-
-		if err := client.Switch(cmd.Context(), index); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
-		}
-
-		return nil
+		return client.Switch(cmd.Context(), index)
 	},
 }
 

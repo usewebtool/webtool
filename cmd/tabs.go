@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -14,8 +13,7 @@ var tabsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		tabs, err := client.Tabs(cmd.Context())
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
+			return err
 		}
 		for _, t := range tabs {
 			fmt.Printf("%d %s %s\n", t.Index, t.Title, t.URL)
