@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -12,7 +13,9 @@ var reloadCmd = &cobra.Command{
 	Short: "Reload the current page.",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := client.Reload(cmd.Context()); err != nil {
+		ctx, cancel := context.WithTimeout(cmd.Context(), timeoutFlag)
+		defer cancel()
+		if err := client.Reload(ctx); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)
 		}

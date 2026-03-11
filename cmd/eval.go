@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -12,7 +13,9 @@ var evalCmd = &cobra.Command{
 	Short: "Execute a JavaScript expression and print the result.",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		result, err := client.Eval(cmd.Context(), args[0])
+		ctx, cancel := context.WithTimeout(cmd.Context(), timeoutFlag)
+		defer cancel()
+		result, err := client.Eval(ctx, args[0])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)

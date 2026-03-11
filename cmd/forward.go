@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -12,7 +13,9 @@ var forwardCmd = &cobra.Command{
 	Short: "Navigate forward in browser history.",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := client.Forward(cmd.Context()); err != nil {
+		ctx, cancel := context.WithTimeout(cmd.Context(), timeoutFlag)
+		defer cancel()
+		if err := client.Forward(ctx); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)
 		}
