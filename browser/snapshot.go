@@ -97,7 +97,7 @@ func classify(role string, hasName bool) nodeKind {
 	if interactiveRoles[role] {
 		return kindInteractive
 	}
-	if role == "heading" {
+	if role == "heading" || role == "LabelText" {
 		return kindInfo
 	}
 	if role == "img" && hasName {
@@ -198,6 +198,14 @@ func walkTree(
 		return true
 
 	case kindInteractive, kindInfo:
+		// If the node has no name, try to resolve it from StaticText descendants.
+		if name == "" {
+			name = collectStaticText(nodeID, nodeMap, childMap)
+		}
+		// Skip info nodes that have no text to show.
+		if kind == kindInfo && name == "" {
+			return false
+		}
 		formatNode(buf, node, role, name, depth)
 		return kind == kindInteractive
 
@@ -216,8 +224,11 @@ func walkTree(
 func formatNode(buf *strings.Builder, node *proto.AccessibilityAXNode, role, name string, depth int) {
 	indent := strings.Repeat("  ", depth)
 
-	// Build role with optional level suffix for headings.
+	// Map AX role names to more readable display names.
 	roleStr := role
+	if role == "LabelText" {
+		roleStr = "label"
+	}
 	if role == "heading" {
 		if lvl := nodeProperty(node, "level"); lvl != "" {
 			roleStr = fmt.Sprintf("heading[%s]", lvl)
@@ -270,6 +281,34 @@ func formatNode(buf *strings.Builder, node *proto.AccessibilityAXNode, role, nam
 	}
 
 	buf.WriteByte('\n')
+}
+
+// collectStaticText recursively collects text from StaticText descendants.
+// Used to resolve the display text for nodes like LabelText where Chrome puts
+// the visible text in StaticText children rather than the node's own name.
+func collectStaticText(
+	nodeID proto.AccessibilityAXNodeID,
+	nodeMap map[proto.AccessibilityAXNodeID]*proto.AccessibilityAXNode,
+	childMap map[proto.AccessibilityAXNodeID][]proto.AccessibilityAXNodeID,
+) string {
+	var parts []string
+	for _, childID := range childMap[nodeID] {
+		child, ok := nodeMap[childID]
+		if !ok {
+			continue
+		}
+		if axStr(child.Role) == "StaticText" {
+			if t := axStr(child.Name); t != "" {
+				parts = append(parts, t)
+			}
+		} else {
+			// Recurse into formatting wrappers (e.g. <strong>, <em>).
+			if t := collectStaticText(childID, nodeMap, childMap); t != "" {
+				parts = append(parts, t)
+			}
+		}
+	}
+	return strings.Join(parts, "")
 }
 
 // axStr extracts the string value from an AXValue, or "" if nil/empty.
