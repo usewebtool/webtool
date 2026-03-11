@@ -63,11 +63,14 @@ var structuralRoles = map[string]bool{
 	"menubar":       true,
 	"list":          true,
 	"listbox":       true,
+	"listitem":      true,
 	"table":         true,
 	"tree":          true,
 	"tablist":       true,
 	"region":        true,
 	"group":         true,
+	"article":       true,
+	"section":       true,
 }
 
 // interactiveRoles are elements the user can act on (click, type, select, etc.).
@@ -104,8 +107,8 @@ func classify(role string, hasName bool) nodeKind {
 		return kindInfo
 	}
 	if structuralRoles[role] {
-		// region and group only shown if named
-		if (role == "region" || role == "group") && !hasName {
+		// region, group, and section only shown if named
+		if (role == "region" || role == "group" || role == "section") && !hasName {
 			return kindCollapse
 		}
 		return kindStructural
