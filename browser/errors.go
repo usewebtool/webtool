@@ -78,6 +78,18 @@ func (e *ErrNotStable) Error() string {
 }
 func (e *ErrNotStable) Selector() string { return e.Sel }
 
+// ErrOptionNotFound indicates that no option matching the given text exists
+// in the select element. The agent should extract the element to see available options.
+type ErrOptionNotFound struct {
+	Sel   string
+	Value string
+}
+
+func (e *ErrOptionNotFound) Error() string {
+	return fmt.Sprintf("option not found: %q in select element %s", e.Value, e.Sel)
+}
+func (e *ErrOptionNotFound) Selector() string { return e.Sel }
+
 // ErrNotEnabled indicates that the element is disabled.
 type ErrNotEnabled struct {
 	Sel string

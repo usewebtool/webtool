@@ -210,6 +210,10 @@ func (b *Browser) Select(ctx context.Context, selector string, value string) err
 	el = el.Context(ctx)
 
 	if err := el.Select([]string{value}, true, rod.SelectorTypeText); err != nil {
+		var notFound *rod.ElementNotFoundError
+		if errors.As(err, &notFound) {
+			return &ErrOptionNotFound{Sel: selector, Value: value}
+		}
 		return fmt.Errorf("selecting option %q: %w", value, err)
 	}
 
