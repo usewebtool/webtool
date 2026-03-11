@@ -50,7 +50,7 @@ var extractCmd = &cobra.Command{
 			os.Exit(2)
 		}
 
-		fmt.Print(content)
+		fmt.Println(content)
 		return nil
 	},
 }
