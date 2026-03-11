@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -14,8 +13,7 @@ var snapshotCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		snapshot, err := client.Snapshot(cmd.Context())
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
+			return err
 		}
 		fmt.Print(snapshot)
 		return nil

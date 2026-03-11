@@ -2,7 +2,6 @@ package browser
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -21,16 +20,24 @@ func resolveElement(ctx context.Context, page *rod.Page, selector string) (*rod.
 			BackendNodeID: proto.DOMBackendNodeID(id),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("node %d not found: %w", id, err)
+			return nil, &ErrStaleNode{Sel: selector}
 		}
 		return el, nil
 	}
 
 	if strings.HasPrefix(selector, "/") {
-		return page.Context(ctx).ElementX(selector)
+		el, err := page.Context(ctx).ElementX(selector)
+		if err != nil {
+			return nil, &ErrNotFound{Sel: selector}
+		}
+		return el, nil
 	}
 
-	return page.Context(ctx).Element(selector)
+	el, err := page.Context(ctx).Element(selector)
+	if err != nil {
+		return nil, &ErrNotFound{Sel: selector}
+	}
+	return el, nil
 }
 
 // resolveElementNow finds an element immediately without retrying. Returns nil
@@ -43,7 +50,7 @@ func resolveElementNow(ctx context.Context, page *rod.Page, selector string) (*r
 			BackendNodeID: proto.DOMBackendNodeID(id),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("node %d not found: %w", id, err)
+			return nil, &ErrStaleNode{Sel: selector}
 		}
 		return el, nil
 	}
@@ -54,7 +61,7 @@ func resolveElementNow(ctx context.Context, page *rod.Page, selector string) (*r
 			return nil, err
 		}
 		if !has {
-			return nil, fmt.Errorf("element not found: %s", selector)
+			return nil, &ErrNotFound{Sel: selector}
 		}
 		return el, nil
 	}
@@ -64,7 +71,7 @@ func resolveElementNow(ctx context.Context, page *rod.Page, selector string) (*r
 		return nil, err
 	}
 	if !has {
-		return nil, fmt.Errorf("element not found: %s", selector)
+		return nil, &ErrNotFound{Sel: selector}
 	}
 	return el, nil
 }

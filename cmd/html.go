@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -23,11 +22,9 @@ var htmlCmd = &cobra.Command{
 
 		content, err := client.Extract(ctx, selector, true)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
+			return err
 		}
-
-		fmt.Print(content)
+		fmt.Println(content)
 		return nil
 	},
 }

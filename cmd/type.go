@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -16,11 +14,7 @@ var typeCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(cmd.Context(), timeoutFlag)
 		defer cancel()
 
-		if err := client.Type(ctx, args[0], args[1]); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
-		}
-		return nil
+		return client.Type(ctx, args[0], args[1])
 	},
 }
 

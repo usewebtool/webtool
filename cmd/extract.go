@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -25,8 +24,7 @@ var extractCmd = &cobra.Command{
 		}
 
 		if extractMain && selector != "" {
-			fmt.Fprintln(os.Stderr, "--main and a selector are mutually exclusive")
-			os.Exit(2)
+			return fmt.Errorf("--main and a selector are mutually exclusive")
 		}
 
 		if extractMain {
@@ -46,11 +44,9 @@ var extractCmd = &cobra.Command{
 
 		content, err := client.Extract(ctx, selector, extractHTML)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
+			return err
 		}
-
-		fmt.Print(content)
+		fmt.Println(content)
 		return nil
 	},
 }

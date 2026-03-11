@@ -26,7 +26,7 @@ func (b *Browser) Extract(ctx context.Context, selector string, asHTML bool) (st
 	} else {
 		el, resolveErr := resolveElement(ctx, page, selector)
 		if resolveErr != nil {
-			return "", fmt.Errorf("resolving element %q: %w", selector, resolveErr)
+			return "", resolveErr
 		}
 		html, err = el.HTML()
 	}

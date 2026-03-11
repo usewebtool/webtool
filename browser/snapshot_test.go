@@ -256,6 +256,75 @@ func TestFormatSnapshot(t *testing.T) {
 			},
 		},
 		{
+			name:  "listitem shown when containing interactive elements",
+			url:   "https://example.com",
+			title: "Test",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"list1"}},
+				{NodeID: "list1", ParentID: "root", Role: axVal("list"), BackendDOMNodeID: 200, ChildIDs: []proto.AccessibilityAXNodeID{"li1", "li2"}},
+				{NodeID: "li1", ParentID: "list1", Role: axVal("listitem"), BackendDOMNodeID: 201, ChildIDs: []proto.AccessibilityAXNodeID{"link1"}},
+				{NodeID: "link1", ParentID: "li1", Role: axVal("link"), Name: axVal("Home"), BackendDOMNodeID: 202},
+				{NodeID: "li2", ParentID: "list1", Role: axVal("listitem"), BackendDOMNodeID: 203, ChildIDs: []proto.AccessibilityAXNodeID{"link2"}},
+				{NodeID: "link2", ParentID: "li2", Role: axVal("link"), Name: axVal("About"), BackendDOMNodeID: 204},
+			},
+			contains: []string{
+				"[200] list",
+				"  [201] listitem",
+				"    [202] link \"Home\"",
+				"  [203] listitem",
+				"    [204] link \"About\"",
+			},
+		},
+		{
+			name:  "listitem pruned when no interactive descendants",
+			url:   "https://example.com",
+			title: "Test",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"list1"}},
+				{NodeID: "list1", ParentID: "root", Role: axVal("list"), BackendDOMNodeID: 210, ChildIDs: []proto.AccessibilityAXNodeID{"li1"}},
+				{NodeID: "li1", ParentID: "list1", Role: axVal("listitem"), BackendDOMNodeID: 211, ChildIDs: []proto.AccessibilityAXNodeID{"text1"}},
+				{NodeID: "text1", ParentID: "li1", Role: axVal("StaticText"), Name: axVal("Just text"), BackendDOMNodeID: 212},
+			},
+			excludes: []string{
+				"listitem",
+				"[210]",
+			},
+		},
+		{
+			name:  "article shown with interactive descendants",
+			url:   "https://example.com",
+			title: "Test",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"art1"}},
+				{NodeID: "art1", ParentID: "root", Role: axVal("article"), Name: axVal("Blog Post"), BackendDOMNodeID: 220, ChildIDs: []proto.AccessibilityAXNodeID{"link1"}},
+				{NodeID: "link1", ParentID: "art1", Role: axVal("link"), Name: axVal("Read more"), BackendDOMNodeID: 221},
+			},
+			contains: []string{
+				`[220] article "Blog Post"`,
+				`  [221] link "Read more"`,
+			},
+		},
+		{
+			name:  "named section shown, unnamed section collapsed",
+			url:   "https://example.com",
+			title: "Test",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"s1", "s2"}},
+				{NodeID: "s1", ParentID: "root", Role: axVal("section"), Name: axVal("Sidebar"), BackendDOMNodeID: 230, ChildIDs: []proto.AccessibilityAXNodeID{"btn1"}},
+				{NodeID: "btn1", ParentID: "s1", Role: axVal("button"), Name: axVal("Toggle"), BackendDOMNodeID: 231},
+				{NodeID: "s2", ParentID: "root", Role: axVal("section"), BackendDOMNodeID: 232, ChildIDs: []proto.AccessibilityAXNodeID{"btn2"}},
+				{NodeID: "btn2", ParentID: "s2", Role: axVal("button"), Name: axVal("OK"), BackendDOMNodeID: 233},
+			},
+			contains: []string{
+				`[230] section "Sidebar"`,
+				`  [231] button "Toggle"`,
+				`[233] button "OK"`,
+			},
+			excludes: []string{
+				"[232]", // unnamed section not shown
+			},
+		},
+		{
 			name:  "img with alt text shown, without alt text hidden",
 			url:   "https://example.com",
 			title: "Test",

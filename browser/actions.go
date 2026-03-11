@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -37,11 +38,49 @@ var keyMap = map[string]input.Key{
 // shifts, and transitions have settled before acting on the element.
 const stableQuietPeriod = 500 * time.Millisecond
 
+// PageSettleTimeout is the maximum time to wait for the DOM to settle
+// after a mutation action (click, type, select). If the page is still changing
+// after this duration, we return success anyway — the action already happened,
+// and the agent's next snapshot will reflect whatever state the page is in.
+var PageSettleTimeout = 3 * time.Second
+
+// pageSettleTick is the interval between DOM snapshot comparisons
+// during post-action stabilization.
+const pageSettleTick = 500 * time.Millisecond
+
+// pageSettleDiff is the maximum percentage of DOM change (0.0–1.0)
+// considered "stable." 0.01 = 1% change tolerance, which ignores noise like
+// timestamps and cursor blinks while catching meaningful re-renders.
+const pageSettleDiff = 0.01
+
+// waitPageSettle waits for the DOM to stabilize after a mutation action.
+// Timeout errors are silently ignored — they mean the page is still busy,
+// not that the action failed.
+func waitPageSettle(ctx context.Context, page *rod.Page) {
+	waitCtx, cancel := context.WithTimeout(ctx, PageSettleTimeout)
+	defer cancel()
+	_ = page.Context(waitCtx).WaitDOMStable(pageSettleTick, pageSettleDiff)
+}
+
+// waitPageLoad subscribes to the CDP Page.frameStoppedLoading event before
+// running the navigation action, then blocks until the event fires. This
+// uses a pure CDP event — no JavaScript injection — so it works reliably
+// even when the page's execution context is destroyed during navigation.
+// After the load event, it waits for the DOM to settle via WaitDOMStable.
+func waitPageLoad(ctx context.Context, page *rod.Page, action func() error) error {
+	wait := page.Context(ctx).WaitNavigation(proto.PageLifecycleEventNameLoad)
+	if err := action(); err != nil {
+		return err
+	}
+	wait()
+	waitPageSettle(ctx, page)
+	return nil
+}
+
 // Click finds an element by selector and clicks it. The element is resolved
-// via resolveElement (backendNodeId, XPath, or CSS). Rod's built-in
-// actionability checks (scroll into view, hover, wait interactable, wait
-// enabled) run before the click. WaitStable is called first to handle
-// animations.
+// via resolveElement (backendNodeId, XPath, or CSS). Actionability checks run
+// before the click: WaitStable (animations settled), Disabled (not disabled),
+// and Interactable (visible, not obscured, pointer-events ok).
 func (b *Browser) Click(ctx context.Context, selector string) error {
 	if err := b.Connect(); err != nil {
 		return err
@@ -54,19 +93,41 @@ func (b *Browser) Click(ctx context.Context, selector string) error {
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
-		return fmt.Errorf("resolving element %q: %w", selector, err)
+		return err
 	}
 
 	el = el.Context(ctx)
 
 	if err := el.WaitStable(stableQuietPeriod); err != nil {
-		return fmt.Errorf("waiting for element stability: %w", err)
+		return &ErrNotStable{Sel: selector}
 	}
 
-	if err := el.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	disabled, err := el.Disabled()
+	if err != nil {
+		return fmt.Errorf("checking disabled state: %w", err)
+	}
+	if disabled {
+		return &ErrNotEnabled{Sel: selector}
+	}
+
+	if err := el.ScrollIntoView(); err != nil {
+		return fmt.Errorf("scrolling element into view: %w", err)
+	}
+
+	pt, err := el.Interactable()
+	if err != nil {
+		return translateInteractableErr(err, selector)
+	}
+
+	if err := page.Mouse.MoveTo(*pt); err != nil {
+		return fmt.Errorf("moving mouse to element: %w", err)
+	}
+
+	if err := page.Mouse.Click(proto.InputMouseButtonLeft, 1); err != nil {
 		return fmt.Errorf("clicking element: %w", err)
 	}
 
+	waitPageSettle(ctx, page)
 	return nil
 }
 
@@ -91,13 +152,29 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
-		return fmt.Errorf("resolving element %q: %w", selector, err)
+		return err
 	}
 
 	el = el.Context(ctx)
 
 	if err := el.WaitStable(stableQuietPeriod); err != nil {
-		return fmt.Errorf("waiting for element stability: %w", err)
+		return &ErrNotStable{Sel: selector}
+	}
+
+	disabled, err := el.Disabled()
+	if err != nil {
+		return fmt.Errorf("checking disabled state: %w", err)
+	}
+	if disabled {
+		return &ErrNotEnabled{Sel: selector}
+	}
+
+	if err := el.ScrollIntoView(); err != nil {
+		return fmt.Errorf("scrolling element into view: %w", err)
+	}
+
+	if _, err := el.Interactable(); err != nil {
+		return translateInteractableErr(err, selector)
 	}
 
 	if err := el.SelectAllText(); err != nil {
@@ -108,6 +185,7 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 		return fmt.Errorf("typing text: %w", err)
 	}
 
+	waitPageSettle(ctx, page)
 	return nil
 }
 
@@ -126,15 +204,20 @@ func (b *Browser) Select(ctx context.Context, selector string, value string) err
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
-		return fmt.Errorf("resolving element %q: %w", selector, err)
+		return err
 	}
 
 	el = el.Context(ctx)
 
 	if err := el.Select([]string{value}, true, rod.SelectorTypeText); err != nil {
+		var notFound *rod.ElementNotFoundError
+		if errors.As(err, &notFound) {
+			return &ErrOptionNotFound{Sel: selector, Value: value}
+		}
 		return fmt.Errorf("selecting option %q: %w", value, err)
 	}
 
+	waitPageSettle(ctx, page)
 	return nil
 }
 
@@ -164,7 +247,9 @@ func (b *Browser) Eval(ctx context.Context, js string) (string, error) {
 	return result.Value.String(), nil
 }
 
-// Back navigates back in browser history and waits for the page to load.
+// Back navigates back in browser history and waits for the DOM to settle.
+// Uses waitPageSettle instead of waitPageLoad because SPA routers handle
+// back navigation via popstate events without a full page load.
 func (b *Browser) Back(ctx context.Context) error {
 	if err := b.Connect(); err != nil {
 		return err
@@ -179,14 +264,13 @@ func (b *Browser) Back(ctx context.Context) error {
 		return fmt.Errorf("navigating back: %w", err)
 	}
 
-	if err := page.Context(ctx).WaitLoad(); err != nil {
-		return fmt.Errorf("waiting for page load: %w", err)
-	}
-
+	waitPageSettle(ctx, page)
 	return nil
 }
 
-// Forward navigates forward in browser history and waits for the page to load.
+// Forward navigates forward in browser history and waits for the DOM to settle.
+// Uses waitPageSettle instead of waitPageLoad because SPA routers handle
+// forward navigation via popstate events without a full page load.
 func (b *Browser) Forward(ctx context.Context) error {
 	if err := b.Connect(); err != nil {
 		return err
@@ -201,33 +285,47 @@ func (b *Browser) Forward(ctx context.Context) error {
 		return fmt.Errorf("navigating forward: %w", err)
 	}
 
-	if err := page.Context(ctx).WaitLoad(); err != nil {
-		return fmt.Errorf("waiting for page load: %w", err)
-	}
-
+	waitPageSettle(ctx, page)
 	return nil
 }
 
-// Reload reloads the current page and waits for it to load.
-func (b *Browser) Reload(ctx context.Context) error {
-	if err := b.Connect(); err != nil {
-		return err
+// translateInteractableErr converts Rod's interactability errors into our typed
+// errors with backendNodeId context for the agent. Falls back to a generic
+// fmt.Errorf if the error is not a recognized Rod interactability type.
+func translateInteractableErr(err error, selector string) error {
+	var covered *rod.CoveredError
+	if errors.As(err, &covered) {
+		return &ErrObscured{
+			Sel:       selector,
+			BlockerID: blockerNodeID(covered.Element),
+		}
 	}
 
-	page, err := b.activePage()
+	var invisible *rod.InvisibleShapeError
+	if errors.As(err, &invisible) {
+		return &ErrNotVisible{Sel: selector}
+	}
+
+	var noPointer *rod.NoPointerEventsError
+	if errors.As(err, &noPointer) {
+		return &ErrNoPointerEvents{Sel: selector}
+	}
+
+	return fmt.Errorf("element not interactable: %s: %w", selector, err)
+}
+
+// blockerNodeID extracts the backendNodeId from a Rod element, typically the
+// covering element in a CoveredError. Returns "" if the element is nil or
+// Describe fails.
+func blockerNodeID(el *rod.Element) string {
+	if el == nil {
+		return ""
+	}
+	node, err := el.Describe(0, false)
 	if err != nil {
-		return err
+		return ""
 	}
-
-	if err := page.Context(ctx).Reload(); err != nil {
-		return fmt.Errorf("reloading page: %w", err)
-	}
-
-	if err := page.Context(ctx).WaitLoad(); err != nil {
-		return fmt.Errorf("waiting for page load: %w", err)
-	}
-
-	return nil
+	return fmt.Sprintf("%d", node.BackendNodeID)
 }
 
 // Key sends a single key press to the active page. The key name is
@@ -253,5 +351,6 @@ func (b *Browser) Key(ctx context.Context, name string) error {
 		return fmt.Errorf("pressing key %q: %w", name, err)
 	}
 
+	waitPageSettle(ctx, page)
 	return nil
 }
