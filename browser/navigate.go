@@ -32,11 +32,12 @@ func (b *Browser) Open(ctx context.Context, url string) error {
 		return err
 	}
 
-	if err := page.Context(ctx).Navigate(url); err != nil {
-		return fmt.Errorf("navigating to %s: %w", url, err)
-	}
-
-	if err := waitForLoad(ctx, page); err != nil {
+	if err := waitPageLoad(ctx, page, func() error {
+		if err := page.Context(ctx).Navigate(url); err != nil {
+			return fmt.Errorf("navigating to %s: %w", url, err)
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
 

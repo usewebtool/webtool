@@ -61,13 +61,17 @@ func waitPageSettle(ctx context.Context, page *rod.Page) {
 	_ = page.Context(waitCtx).WaitDOMStable(pageSettleTick, pageSettleDiff)
 }
 
-// waitForLoad waits for the page load event, then waits for the DOM to settle.
-// Used after navigations (open, back, forward, reload) where the page loads
-// new content and JS may still be rendering after the load event fires.
-func waitForLoad(ctx context.Context, page *rod.Page) error {
-	if err := page.Context(ctx).WaitLoad(); err != nil {
-		return fmt.Errorf("waiting for page load: %w", err)
+// waitPageLoad subscribes to the CDP Page.frameStoppedLoading event before
+// running the navigation action, then blocks until the event fires. This
+// uses a pure CDP event — no JavaScript injection — so it works reliably
+// even when the page's execution context is destroyed during navigation.
+// After the load event, it waits for the DOM to settle via WaitDOMStable.
+func waitPageLoad(ctx context.Context, page *rod.Page, action func() error) error {
+	wait := page.Context(ctx).WaitNavigation(proto.PageLifecycleEventNameLoad)
+	if err := action(); err != nil {
+		return err
 	}
+	wait()
 	waitPageSettle(ctx, page)
 	return nil
 }
@@ -233,11 +237,12 @@ func (b *Browser) Back(ctx context.Context) error {
 		return err
 	}
 
-	if err := page.Context(ctx).NavigateBack(); err != nil {
-		return fmt.Errorf("navigating back: %w", err)
-	}
-
-	return waitForLoad(ctx, page)
+	return waitPageLoad(ctx, page, func() error {
+		if err := page.Context(ctx).NavigateBack(); err != nil {
+			return fmt.Errorf("navigating back: %w", err)
+		}
+		return nil
+	})
 }
 
 // Forward navigates forward in browser history and waits for the page to load.
@@ -251,11 +256,12 @@ func (b *Browser) Forward(ctx context.Context) error {
 		return err
 	}
 
-	if err := page.Context(ctx).NavigateForward(); err != nil {
-		return fmt.Errorf("navigating forward: %w", err)
-	}
-
-	return waitForLoad(ctx, page)
+	return waitPageLoad(ctx, page, func() error {
+		if err := page.Context(ctx).NavigateForward(); err != nil {
+			return fmt.Errorf("navigating forward: %w", err)
+		}
+		return nil
+	})
 }
 
 // Reload reloads the current page and waits for it to load.
@@ -269,11 +275,12 @@ func (b *Browser) Reload(ctx context.Context) error {
 		return err
 	}
 
-	if err := page.Context(ctx).Reload(); err != nil {
-		return fmt.Errorf("reloading page: %w", err)
-	}
-
-	return waitForLoad(ctx, page)
+	return waitPageLoad(ctx, page, func() error {
+		if err := page.Context(ctx).Reload(); err != nil {
+			return fmt.Errorf("reloading page: %w", err)
+		}
+		return nil
+	})
 }
 
 // Key sends a single key press to the active page. The key name is
