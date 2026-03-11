@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -77,10 +78,9 @@ func waitPageLoad(ctx context.Context, page *rod.Page, action func() error) erro
 }
 
 // Click finds an element by selector and clicks it. The element is resolved
-// via resolveElement (backendNodeId, XPath, or CSS). Rod's built-in
-// actionability checks (scroll into view, hover, wait interactable, wait
-// enabled) run before the click. WaitStable is called first to handle
-// animations.
+// via resolveElement (backendNodeId, XPath, or CSS). Actionability checks run
+// before the click: WaitStable (animations settled), Disabled (not disabled),
+// and Interactable (visible, not obscured, pointer-events ok).
 func (b *Browser) Click(ctx context.Context, selector string) error {
 	if err := b.Connect(); err != nil {
 		return err
@@ -99,7 +99,7 @@ func (b *Browser) Click(ctx context.Context, selector string) error {
 	el = el.Context(ctx)
 
 	if err := el.WaitStable(stableQuietPeriod); err != nil {
-		return &ErrNotInteractable{Sel: selector, Reason: "not stable"}
+		return &ErrNotStable{Sel: selector}
 	}
 
 	disabled, err := el.Disabled()
@@ -110,7 +110,20 @@ func (b *Browser) Click(ctx context.Context, selector string) error {
 		return &ErrNotEnabled{Sel: selector}
 	}
 
-	if err := el.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	if err := el.ScrollIntoView(); err != nil {
+		return fmt.Errorf("scrolling element into view: %w", err)
+	}
+
+	pt, err := el.Interactable()
+	if err != nil {
+		return translateInteractableErr(err, selector)
+	}
+
+	if err := page.Mouse.MoveTo(*pt); err != nil {
+		return fmt.Errorf("moving mouse to element: %w", err)
+	}
+
+	if err := page.Mouse.Click(proto.InputMouseButtonLeft, 1); err != nil {
 		return fmt.Errorf("clicking element: %w", err)
 	}
 
@@ -145,11 +158,7 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 	el = el.Context(ctx)
 
 	if err := el.WaitStable(stableQuietPeriod); err != nil {
-		return &ErrNotInteractable{Sel: selector, Reason: "not stable"}
-	}
-
-	if _, err := el.WaitInteractable(); err != nil {
-		return &ErrNotInteractable{Sel: selector, Reason: "not interactable"}
+		return &ErrNotStable{Sel: selector}
 	}
 
 	disabled, err := el.Disabled()
@@ -158,6 +167,14 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 	}
 	if disabled {
 		return &ErrNotEnabled{Sel: selector}
+	}
+
+	if err := el.ScrollIntoView(); err != nil {
+		return fmt.Errorf("scrolling element into view: %w", err)
+	}
+
+	if _, err := el.Interactable(); err != nil {
+		return translateInteractableErr(err, selector)
 	}
 
 	if err := el.SelectAllText(); err != nil {
@@ -264,23 +281,43 @@ func (b *Browser) Forward(ctx context.Context) error {
 	})
 }
 
-// Reload reloads the current page and waits for it to load.
-func (b *Browser) Reload(ctx context.Context) error {
-	if err := b.Connect(); err != nil {
-		return err
-	}
-
-	page, err := b.activePage()
-	if err != nil {
-		return err
-	}
-
-	return waitPageLoad(ctx, page, func() error {
-		if err := page.Context(ctx).Reload(); err != nil {
-			return fmt.Errorf("reloading page: %w", err)
+// translateInteractableErr converts Rod's interactability errors into our typed
+// errors with backendNodeId context for the agent. Falls back to a generic
+// fmt.Errorf if the error is not a recognized Rod interactability type.
+func translateInteractableErr(err error, selector string) error {
+	var covered *rod.CoveredError
+	if errors.As(err, &covered) {
+		return &ErrObscured{
+			Sel:       selector,
+			BlockerID: blockerNodeID(covered.Element),
 		}
-		return nil
-	})
+	}
+
+	var invisible *rod.InvisibleShapeError
+	if errors.As(err, &invisible) {
+		return &ErrNotVisible{Sel: selector}
+	}
+
+	var noPointer *rod.NoPointerEventsError
+	if errors.As(err, &noPointer) {
+		return &ErrNoPointerEvents{Sel: selector}
+	}
+
+	return fmt.Errorf("element not interactable: %s: %w", selector, err)
+}
+
+// blockerNodeID extracts the backendNodeId from a Rod element, typically the
+// covering element in a CoveredError. Returns "" if the element is nil or
+// Describe fails.
+func blockerNodeID(el *rod.Element) string {
+	if el == nil {
+		return ""
+	}
+	node, err := el.Describe(0, false)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%d", node.BackendNodeID)
 }
 
 // Key sends a single key press to the active page. The key name is

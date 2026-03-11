@@ -29,19 +29,56 @@ type ErrNotFound struct {
 func (e *ErrNotFound) Error() string    { return fmt.Sprintf("element not found: %s", e.Sel) }
 func (e *ErrNotFound) Selector() string { return e.Sel }
 
-// ErrNotInteractable indicates that the element exists but cannot be acted on
-// (not visible, obscured by overlay, or animation not settled).
-type ErrNotInteractable struct {
-	Sel    string
-	Reason string
+// ErrNotVisible indicates that the element has no visible shape (zero bounding
+// rect) or is outside the viewport.
+type ErrNotVisible struct {
+	Sel string
 }
 
-func (e *ErrNotInteractable) Error() string {
-	return fmt.Sprintf("element not interactable: %s (%s)", e.Sel, e.Reason)
+func (e *ErrNotVisible) Error() string {
+	return fmt.Sprintf("element not visible: %s — element has no visible shape or is outside the viewport", e.Sel)
 }
-func (e *ErrNotInteractable) Selector() string { return e.Sel }
+func (e *ErrNotVisible) Selector() string { return e.Sel }
 
-// ErrNotEnabled indicates that the element is disabled or readonly.
+// ErrObscured indicates that the element is covered by another element (e.g.
+// a modal, cookie banner, or overlay). BlockerID is the backendNodeId of the
+// covering element, or empty if it could not be determined.
+type ErrObscured struct {
+	Sel       string
+	BlockerID string
+}
+
+func (e *ErrObscured) Error() string {
+	if e.BlockerID != "" {
+		return fmt.Sprintf("element obscured: %s is covered by element %s — dismiss or click the covering element first", e.Sel, e.BlockerID)
+	}
+	return fmt.Sprintf("element obscured: %s is covered by another element", e.Sel)
+}
+func (e *ErrObscured) Selector() string { return e.Sel }
+
+// ErrNoPointerEvents indicates that the element has pointer-events: none set
+// in CSS, preventing mouse interaction.
+type ErrNoPointerEvents struct {
+	Sel string
+}
+
+func (e *ErrNoPointerEvents) Error() string {
+	return fmt.Sprintf("element not clickable: %s — pointer-events is none", e.Sel)
+}
+func (e *ErrNoPointerEvents) Selector() string { return e.Sel }
+
+// ErrNotStable indicates that the element's position or size is still changing
+// (animation, layout shift, or transition in progress).
+type ErrNotStable struct {
+	Sel string
+}
+
+func (e *ErrNotStable) Error() string {
+	return fmt.Sprintf("element not stable: %s — position or size still changing", e.Sel)
+}
+func (e *ErrNotStable) Selector() string { return e.Sel }
+
+// ErrNotEnabled indicates that the element is disabled.
 type ErrNotEnabled struct {
 	Sel string
 }
