@@ -247,7 +247,9 @@ func (b *Browser) Eval(ctx context.Context, js string) (string, error) {
 	return result.Value.String(), nil
 }
 
-// Back navigates back in browser history and waits for the page to load.
+// Back navigates back in browser history and waits for the DOM to settle.
+// Uses waitPageSettle instead of waitPageLoad because SPA routers handle
+// back navigation via popstate events without a full page load.
 func (b *Browser) Back(ctx context.Context) error {
 	if err := b.Connect(); err != nil {
 		return err
@@ -258,15 +260,17 @@ func (b *Browser) Back(ctx context.Context) error {
 		return err
 	}
 
-	return waitPageLoad(ctx, page, func() error {
-		if err := page.Context(ctx).NavigateBack(); err != nil {
-			return fmt.Errorf("navigating back: %w", err)
-		}
-		return nil
-	})
+	if err := page.Context(ctx).NavigateBack(); err != nil {
+		return fmt.Errorf("navigating back: %w", err)
+	}
+
+	waitPageSettle(ctx, page)
+	return nil
 }
 
-// Forward navigates forward in browser history and waits for the page to load.
+// Forward navigates forward in browser history and waits for the DOM to settle.
+// Uses waitPageSettle instead of waitPageLoad because SPA routers handle
+// forward navigation via popstate events without a full page load.
 func (b *Browser) Forward(ctx context.Context) error {
 	if err := b.Connect(); err != nil {
 		return err
@@ -277,12 +281,12 @@ func (b *Browser) Forward(ctx context.Context) error {
 		return err
 	}
 
-	return waitPageLoad(ctx, page, func() error {
-		if err := page.Context(ctx).NavigateForward(); err != nil {
-			return fmt.Errorf("navigating forward: %w", err)
-		}
-		return nil
-	})
+	if err := page.Context(ctx).NavigateForward(); err != nil {
+		return fmt.Errorf("navigating forward: %w", err)
+	}
+
+	waitPageSettle(ctx, page)
+	return nil
 }
 
 // translateInteractableErr converts Rod's interactability errors into our typed
