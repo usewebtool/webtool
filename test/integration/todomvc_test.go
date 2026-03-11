@@ -53,6 +53,16 @@ func TestTodoMVC_AddAndComplete(t *testing.T) {
 	if !strings.Contains(snap, "Walk the dog") {
 		t.Fatalf("expected 'Walk the dog' in snapshot after completing, got:\n%s", snap)
 	}
+
+	// Clear completed todos.
+	clearID := findElement(t, snap, "Clear completed")
+	webtoolOK(t, "click", clearID)
+
+	// Verify the completed todo is gone.
+	snap = webtoolOK(t, "snapshot")
+	if strings.Contains(snap, "Buy groceries") {
+		t.Fatalf("expected 'Buy groceries' to be cleared, got:\n%s", snap)
+	}
 }
 
 // findElement returns the backendNodeId for the first element matching the given role in a snapshot.
