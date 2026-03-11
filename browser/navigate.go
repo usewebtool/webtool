@@ -100,6 +100,12 @@ func (b *Browser) Switch(ctx context.Context, index int) error {
 }
 
 // activePage returns the page for the saved TargetID, or the first available page.
+// This method intentionally does NOT accept a context.Context parameter.
+// Rod's .Context(ctx) returns a shallow copy, but Page objects returned by
+// the clone inherit the request-scoped context. When the request ends, those
+// pages carry a cancelled context, breaking subsequent operations. Callers
+// should apply context to the returned page directly: page.Context(ctx).
+// See commit 408af4f.
 func (b *Browser) activePage() (*rod.Page, error) {
 	if b.TargetID != "" {
 		page, err := b.rod.PageFromTarget(proto.TargetTargetID(b.TargetID))
