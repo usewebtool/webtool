@@ -23,6 +23,8 @@ Or download a binary from the [releases page](https://github.com/machinae/webtoo
 
 That's it. The daemon keeps the connection open, so you only approve once per session.
 
+To stop the daemon and close the connection run `webtool stop`.
+
 ## Usage
 
 ```bash
@@ -33,7 +35,8 @@ webtool type 43822 "hello world"    # type into an input field
 webtool key Enter                   # press a key
 webtool extract --main              # extract the main content as markdown
 webtool tabs                        # list open tabs
-webtool back                        # go back in history
+webtool tab 2                       # switch to tab 2
+webtool stop                        # close the connection 
 ```
 
 The workflow is **snapshot → action → snapshot**: take a snapshot to see what's on the page, act on an element by its ID, then snapshot again to see the result.
