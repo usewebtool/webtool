@@ -83,6 +83,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /select", s.handleSelect)
 	mux.HandleFunc("POST /extract", s.handleExtract)
 	mux.HandleFunc("POST /switch", s.handleSwitch)
+	mux.HandleFunc("POST /cdp", s.handleCDP)
 	mux.HandleFunc("POST /stop", s.handleStop)
 
 	s.srv = &http.Server{Handler: s.withLogging(mux)}
@@ -417,6 +418,28 @@ func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, Response{})
+}
+
+func (s *Server) handleCDP(w http.ResponseWriter, r *http.Request) {
+	var req CDPRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, Response{Error: fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+	if req.Method == "" {
+		writeJSON(w, http.StatusBadRequest, Response{Error: "method is required"})
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	result, err := s.browser.CDP(r.Context(), req.Method, req.Params)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, CDPResponse{Result: result})
 }
 
 func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {

@@ -250,6 +250,18 @@ func (c *Client) Snapshot(ctx context.Context, mode browser.SnapshotMode) (strin
 	return resp.Snapshot, nil
 }
 
+// CDP sends a raw Chrome DevTools Protocol command and returns the JSON result.
+func (c *Client) CDP(ctx context.Context, method string, params json.RawMessage) (json.RawMessage, error) {
+	var resp CDPResponse
+	if err := c.do(ctx, "POST", "/cdp", CDPRequest{Method: method, Params: params}, &resp); err != nil {
+		return nil, err
+	}
+	if err := resp.Err(); err != nil {
+		return nil, err
+	}
+	return resp.Result, nil
+}
+
 // Stop sends a shutdown request to the daemon.
 func (c *Client) Stop(ctx context.Context) error {
 	var resp Response
