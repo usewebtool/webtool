@@ -463,17 +463,18 @@ func TestFormatSnapshotModes(t *testing.T) {
 		excludes []string
 	}{
 		{
-			name: "interactive mode strips headings and images",
+			name: "interactive mode strips headings, images, and labels",
 			mode: ModeInteractive,
 			nodes: []*proto.AccessibilityAXNode{
-				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"h1", "img1", "btn1"}},
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"h1", "img1", "lbl1", "btn1"}},
 				{NodeID: "h1", ParentID: "root", Role: axVal("heading"), Name: axVal("Welcome"), BackendDOMNodeID: 50,
 					Properties: []*proto.AccessibilityAXProperty{prop("level", axVal("1"))}},
 				{NodeID: "img1", ParentID: "root", Role: axVal("img"), Name: axVal("Logo"), BackendDOMNodeID: 51},
+				{NodeID: "lbl1", ParentID: "root", Role: axVal("LabelText"), Name: axVal("Email"), BackendDOMNodeID: 53},
 				{NodeID: "btn1", ParentID: "root", Role: axVal("button"), Name: axVal("Go"), BackendDOMNodeID: 52},
 			},
 			contains: []string{`[52] button "Go"`},
-			excludes: []string{"heading", "Welcome", "img", "Logo"},
+			excludes: []string{"heading", "Welcome", "img", "Logo", "label", "Email"},
 		},
 		{
 			name: "default mode shows status and alert",
@@ -514,6 +515,21 @@ func TestFormatSnapshotModes(t *testing.T) {
 				`[70] paragraph "Some paragraph text"`,
 				`[71] text "Raw text"`,
 				`[72] button "OK"`,
+			},
+		},
+		{
+			name: "all mode shows blockquote and code",
+			mode: ModeAll,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"bq1", "code1", "btn1"}},
+				{NodeID: "bq1", ParentID: "root", Role: axVal("blockquote"), Name: axVal("To be or not to be"), BackendDOMNodeID: 73},
+				{NodeID: "code1", ParentID: "root", Role: axVal("code"), Name: axVal("fmt.Println(hello)"), BackendDOMNodeID: 74},
+				{NodeID: "btn1", ParentID: "root", Role: axVal("button"), Name: axVal("OK"), BackendDOMNodeID: 75},
+			},
+			contains: []string{
+				`[73] blockquote "To be or not to be"`,
+				`[74] code "fmt.Println(hello)"`,
+				`[75] button "OK"`,
 			},
 		},
 		{
