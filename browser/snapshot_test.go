@@ -346,7 +346,251 @@ func TestFormatSnapshot(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatSnapshot(tt.url, tt.title, tt.nodes)
+			got := formatSnapshot(tt.url, tt.title, tt.nodes, ModeDefault)
+
+			for _, want := range tt.contains {
+				if !strings.Contains(got, want) {
+					t.Errorf("output missing expected line %q\n\ngot:\n%s", want, got)
+				}
+			}
+			for _, reject := range tt.excludes {
+				if strings.Contains(got, reject) {
+					t.Errorf("output should not contain %q\n\ngot:\n%s", reject, got)
+				}
+			}
+		})
+	}
+}
+
+func TestTruncateText(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"short", "hello", "hello"},
+		{"exact limit", strings.Repeat("a", 160), strings.Repeat("a", 160)},
+		{"over limit", strings.Repeat("a", 170), strings.Repeat("a", 157) + "..."},
+		{"empty", "", ""},
+		{"multibyte runes", strings.Repeat("日", 165), strings.Repeat("日", 157) + "..."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncateText(tt.input)
+			if got != tt.want {
+				t.Errorf("truncateText(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestClassify(t *testing.T) {
+	tests := []struct {
+		name    string
+		role    string
+		hasName bool
+		mode    SnapshotMode
+		want    nodeKind
+	}{
+		// Interactive roles are always interactive regardless of mode.
+		{"button default", "button", true, ModeDefault, kindInteractive},
+		{"button interactive", "button", true, ModeInteractive, kindInteractive},
+		{"button all", "button", true, ModeAll, kindInteractive},
+		{"link", "link", true, ModeDefault, kindInteractive},
+
+		// Heading: info in default/all, collapsed in interactive.
+		{"heading default", "heading", true, ModeDefault, kindInfo},
+		{"heading interactive", "heading", true, ModeInteractive, kindCollapse},
+		{"heading all", "heading", true, ModeAll, kindInfo},
+
+		// LabelText: info in default/all, collapsed in interactive.
+		{"label default", "LabelText", true, ModeDefault, kindInfo},
+		{"label interactive", "LabelText", true, ModeInteractive, kindCollapse},
+
+		// img with name: info in default/all, collapsed in interactive.
+		{"img named default", "img", true, ModeDefault, kindInfo},
+		{"img named interactive", "img", true, ModeInteractive, kindCollapse},
+		{"img named all", "img", true, ModeAll, kindInfo},
+		// img without name: always collapsed.
+		{"img unnamed", "img", false, ModeDefault, kindCollapse},
+
+		// status/alert: info in default/all, collapsed in interactive.
+		{"status default", "status", false, ModeDefault, kindInfo},
+		{"status interactive", "status", false, ModeInteractive, kindCollapse},
+		{"alert default", "alert", false, ModeDefault, kindInfo},
+		{"alert all", "alert", false, ModeAll, kindInfo},
+
+		// paragraph/blockquote/code/StaticText: info only in all mode.
+		{"paragraph default", "paragraph", false, ModeDefault, kindCollapse},
+		{"paragraph all", "paragraph", false, ModeAll, kindInfo},
+		{"blockquote all", "blockquote", false, ModeAll, kindInfo},
+		{"code all", "code", false, ModeAll, kindInfo},
+		{"StaticText all", "StaticText", false, ModeAll, kindInfo},
+		{"StaticText default", "StaticText", false, ModeDefault, kindCollapse},
+
+		// Structural roles.
+		{"form", "form", true, ModeDefault, kindStructural},
+		{"navigation", "navigation", false, ModeDefault, kindStructural},
+		{"listitem", "listitem", false, ModeDefault, kindStructural},
+		{"article", "article", false, ModeDefault, kindStructural},
+
+		// Unnamed region/group/section collapse.
+		{"unnamed region", "region", false, ModeDefault, kindCollapse},
+		{"named region", "region", true, ModeDefault, kindStructural},
+		{"unnamed group", "group", false, ModeDefault, kindCollapse},
+		{"unnamed section", "section", false, ModeDefault, kindCollapse},
+		{"named section", "section", true, ModeDefault, kindStructural},
+
+		// Unknown roles collapse.
+		{"generic", "generic", false, ModeDefault, kindCollapse},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := classify(tt.role, tt.hasName, tt.mode)
+			if got != tt.want {
+				t.Errorf("classify(%q, %v, %v) = %v, want %v", tt.role, tt.hasName, tt.mode, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatSnapshotModes(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     SnapshotMode
+		nodes    []*proto.AccessibilityAXNode
+		contains []string
+		excludes []string
+	}{
+		{
+			name: "interactive mode strips headings and images",
+			mode: ModeInteractive,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"h1", "img1", "btn1"}},
+				{NodeID: "h1", ParentID: "root", Role: axVal("heading"), Name: axVal("Welcome"), BackendDOMNodeID: 50,
+					Properties: []*proto.AccessibilityAXProperty{prop("level", axVal("1"))}},
+				{NodeID: "img1", ParentID: "root", Role: axVal("img"), Name: axVal("Logo"), BackendDOMNodeID: 51},
+				{NodeID: "btn1", ParentID: "root", Role: axVal("button"), Name: axVal("Go"), BackendDOMNodeID: 52},
+			},
+			contains: []string{`[52] button "Go"`},
+			excludes: []string{"heading", "Welcome", "img", "Logo"},
+		},
+		{
+			name: "default mode shows status and alert",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"s1", "a1", "btn1"}},
+				{NodeID: "s1", ParentID: "root", Role: axVal("status"), Name: axVal("Item added"), BackendDOMNodeID: 60},
+				{NodeID: "a1", ParentID: "root", Role: axVal("alert"), Name: axVal("Invalid password"), BackendDOMNodeID: 61},
+				{NodeID: "btn1", ParentID: "root", Role: axVal("button"), Name: axVal("OK"), BackendDOMNodeID: 62},
+			},
+			contains: []string{
+				`[60] status "Item added"`,
+				`[61] alert "Invalid password"`,
+				`[62] button "OK"`,
+			},
+		},
+		{
+			name: "interactive mode strips status and alert",
+			mode: ModeInteractive,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"s1", "btn1"}},
+				{NodeID: "s1", ParentID: "root", Role: axVal("status"), Name: axVal("Item added"), BackendDOMNodeID: 60},
+				{NodeID: "btn1", ParentID: "root", Role: axVal("button"), Name: axVal("OK"), BackendDOMNodeID: 62},
+			},
+			contains: []string{`[62] button "OK"`},
+			excludes: []string{"status", "Item added"},
+		},
+		{
+			name: "all mode shows paragraph and StaticText",
+			mode: ModeAll,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"p1", "st1", "btn1"}},
+				{NodeID: "p1", ParentID: "root", Role: axVal("paragraph"), Name: axVal("Some paragraph text"), BackendDOMNodeID: 70},
+				{NodeID: "st1", ParentID: "root", Role: axVal("StaticText"), Name: axVal("Raw text"), BackendDOMNodeID: 71},
+				{NodeID: "btn1", ParentID: "root", Role: axVal("button"), Name: axVal("OK"), BackendDOMNodeID: 72},
+			},
+			contains: []string{
+				`[70] paragraph "Some paragraph text"`,
+				`[71] text "Raw text"`,
+				`[72] button "OK"`,
+			},
+		},
+		{
+			name: "default mode hides paragraph and StaticText",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"p1", "btn1"}},
+				{NodeID: "p1", ParentID: "root", Role: axVal("paragraph"), Name: axVal("Some text"), BackendDOMNodeID: 70},
+				{NodeID: "btn1", ParentID: "root", Role: axVal("button"), Name: axVal("OK"), BackendDOMNodeID: 72},
+			},
+			contains: []string{`[72] button "OK"`},
+			excludes: []string{"paragraph", "Some text"},
+		},
+		{
+			name: "all mode retains structural container with text-only content",
+			mode: ModeAll,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"nav1"}},
+				{NodeID: "nav1", ParentID: "root", Role: axVal("navigation"), BackendDOMNodeID: 80, ChildIDs: []proto.AccessibilityAXNodeID{"p1"}},
+				{NodeID: "p1", ParentID: "nav1", Role: axVal("paragraph"), Name: axVal("Breadcrumb text"), BackendDOMNodeID: 81},
+			},
+			contains: []string{
+				"[80] navigation",
+				`  [81] paragraph "Breadcrumb text"`,
+			},
+		},
+		{
+			name: "default mode prunes structural container with text-only content",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"nav1"}},
+				{NodeID: "nav1", ParentID: "root", Role: axVal("navigation"), BackendDOMNodeID: 80, ChildIDs: []proto.AccessibilityAXNodeID{"st1"}},
+				{NodeID: "st1", ParentID: "nav1", Role: axVal("StaticText"), Name: axVal("Just text"), BackendDOMNodeID: 81},
+			},
+			excludes: []string{"navigation", "[80]"},
+		},
+		{
+			name: "status inside structural container retained in default mode",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"banner1"}},
+				{NodeID: "banner1", ParentID: "root", Role: axVal("banner"), BackendDOMNodeID: 95, ChildIDs: []proto.AccessibilityAXNodeID{"s1"}},
+				{NodeID: "s1", ParentID: "banner1", Role: axVal("status"), Name: axVal("Item added to cart"), BackendDOMNodeID: 96},
+			},
+			contains: []string{
+				"[95] banner",
+				`  [96] status "Item added to cart"`,
+			},
+		},
+		{
+			name: "alert inside structural container retained in default mode",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"region1"}},
+				{NodeID: "region1", ParentID: "root", Role: axVal("region"), Name: axVal("Notifications"), BackendDOMNodeID: 97, ChildIDs: []proto.AccessibilityAXNodeID{"a1"}},
+				{NodeID: "a1", ParentID: "region1", Role: axVal("alert"), Name: axVal("Invalid password"), BackendDOMNodeID: 98},
+			},
+			contains: []string{
+				`[97] region "Notifications"`,
+				`  [98] alert "Invalid password"`,
+			},
+		},
+		{
+			name: "text truncated at maxTextLength",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"btn1"}},
+				{NodeID: "btn1", ParentID: "root", Role: axVal("button"), Name: axVal(strings.Repeat("x", 200)), BackendDOMNodeID: 90},
+			},
+			contains: []string{strings.Repeat("x", 157) + "..."},
+			excludes: []string{strings.Repeat("x", 158)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatSnapshot("https://example.com", "Test", tt.nodes, tt.mode)
 
 			for _, want := range tt.contains {
 				if !strings.Contains(got, want) {

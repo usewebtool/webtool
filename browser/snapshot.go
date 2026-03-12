@@ -9,7 +9,27 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
+// maxSnapshotDepth limits AX tree recursion to avoid runaway nesting.
 const maxSnapshotDepth = 10
+
+// maxTextLength is the maximum rune length for any text content in snapshots.
+// All text (names, summaries, labels) is truncated to this length. If the LLM
+// needs full text, it calls "webtool extract <backendNodeId>".
+const maxTextLength = 160
+
+// SnapshotMode controls the verbosity of the snapshot output.
+type SnapshotMode int
+
+const (
+	// ModeDefault shows interactive elements, structural grouping, headings,
+	// labels, status/alert, and content-container summaries.
+	ModeDefault SnapshotMode = iota
+	// ModeInteractive shows only interactive elements and structural grouping.
+	ModeInteractive
+	// ModeAll shows everything in default plus text-bearing content
+	// (paragraphs, StaticText, blockquotes, code).
+	ModeAll
+)
 
 // Snapshot returns a token-efficient text representation of the current page's
 // interactive elements, structured by accessibility landmarks and forms.
@@ -34,7 +54,7 @@ func (b *Browser) Snapshot(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("getting accessibility tree: %w", err)
 	}
 
-	return formatSnapshot(info.URL, info.Title, result.Nodes), nil
+	return formatSnapshot(info.URL, info.Title, result.Nodes, ModeDefault), nil
 }
 
 // nodeKind classifies how a node should be handled during tree walking.
@@ -96,18 +116,58 @@ var interactiveRoles = map[string]bool{
 	"ProgressIndicator": true,
 }
 
-func classify(role string, hasName bool) nodeKind {
+// contentContainerRoles are structural containers that represent one repeated
+// content unit (inbox row, search result, product card). When unnamed, these
+// get a synthetic summary from descendant text.
+// Future candidates: row, cell, gridcell, columnheader, rowheader (deferred — table handling is separate).
+var contentContainerRoles = map[string]bool{
+	"listitem": true,
+	"article":  true,
+}
+
+// classify determines how a node should be rendered based on its AX role and
+// the current snapshot mode. Interactive roles are always shown. Info roles
+// (headings, status messages, text content) are progressively included as the
+// mode moves from interactive → default → all.
+func classify(role string, hasName bool, mode SnapshotMode) nodeKind {
 	if interactiveRoles[role] {
 		return kindInteractive
 	}
-	if role == "heading" || role == "LabelText" {
-		return kindInfo
+
+	// Info roles vary by mode: interactive shows none, default adds
+	// headings/labels/images/status/alert, all adds text content on top.
+	switch mode {
+	case ModeInteractive:
+		// Strip all info nodes — only interactive elements and structure.
+	case ModeDefault:
+		if role == "heading" || role == "LabelText" {
+			return kindInfo
+		}
+		if role == "img" && hasName {
+			return kindInfo
+		}
+		if role == "status" || role == "alert" {
+			return kindInfo
+		}
+	case ModeAll:
+		if role == "heading" || role == "LabelText" {
+			return kindInfo
+		}
+		if role == "img" && hasName {
+			return kindInfo
+		}
+		if role == "status" || role == "alert" {
+			return kindInfo
+		}
+		// Text-bearing content only in all mode.
+		if role == "paragraph" || role == "blockquote" || role == "code" || role == "StaticText" {
+			return kindInfo
+		}
 	}
-	if role == "img" && hasName {
-		return kindInfo
-	}
+
 	if structuralRoles[role] {
-		// region, group, and section only shown if named
+		// Unnamed region/group/section are too generic to be useful — collapse them
+		// so their children bubble up without extra nesting.
 		if (role == "region" || role == "group" || role == "section") && !hasName {
 			return kindCollapse
 		}
@@ -117,7 +177,7 @@ func classify(role string, hasName bool) nodeKind {
 }
 
 // formatSnapshot builds the text snapshot from raw AX tree nodes.
-func formatSnapshot(url, title string, nodes []*proto.AccessibilityAXNode) string {
+func formatSnapshot(url, title string, nodes []*proto.AccessibilityAXNode, mode SnapshotMode) string {
 	if len(nodes) == 0 {
 		return fmt.Sprintf("[url] %s\n[title] %s\n", url, title)
 	}
@@ -144,19 +204,23 @@ func formatSnapshot(url, title string, nodes []*proto.AccessibilityAXNode) strin
 	var buf strings.Builder
 	fmt.Fprintf(&buf, "[url] %s\n[title] %s\n", url, title)
 
-	walkTree(&buf, rootID, nodeMap, childMap, 0)
+	walkTree(&buf, rootID, nodeMap, childMap, 0, mode)
 
 	return buf.String()
 }
 
-// walkTree recursively walks the AX tree, writing interactive elements with
-// structural indentation. Returns true if any interactive elements were written.
+// walkTree recursively walks the AX tree, writing snapshot lines for relevant
+// nodes. Returns true if the subtree contains "retainable" content — in default
+// and interactive modes that means interactive elements; in all mode it also
+// includes info nodes. Structural containers are only emitted when at least one
+// retainable descendant exists (prevents empty nav/form/list noise).
 func walkTree(
 	buf *strings.Builder,
 	nodeID proto.AccessibilityAXNodeID,
 	nodeMap map[proto.AccessibilityAXNodeID]*proto.AccessibilityAXNode,
 	childMap map[proto.AccessibilityAXNodeID][]proto.AccessibilityAXNodeID,
 	depth int,
+	mode SnapshotMode,
 ) bool {
 	if depth > maxSnapshotDepth {
 		return false
@@ -171,7 +235,7 @@ func walkTree(
 	if node.Ignored {
 		hasInteractive := false
 		for _, childID := range childMap[nodeID] {
-			if walkTree(buf, childID, nodeMap, childMap, depth) {
+			if walkTree(buf, childID, nodeMap, childMap, depth, mode) {
 				hasInteractive = true
 			}
 		}
@@ -180,16 +244,17 @@ func walkTree(
 
 	role := axStr(node.Role)
 	name := axStr(node.Name)
-	kind := classify(role, name != "")
+	kind := classify(role, name != "", mode)
 
 	switch kind {
 	case kindStructural:
-		// Write children to a temp buffer; only emit the container if
-		// at least one interactive descendant was found.
+		// Write children to a temp buffer first. We only emit the container
+		// line if children produced retainable content — otherwise the
+		// container is silently pruned from output.
 		var childBuf strings.Builder
 		hasInteractive := false
 		for _, childID := range childMap[nodeID] {
-			if walkTree(&childBuf, childID, nodeMap, childMap, depth+1) {
+			if walkTree(&childBuf, childID, nodeMap, childMap, depth+1, mode) {
 				hasInteractive = true
 			}
 		}
@@ -209,13 +274,27 @@ func walkTree(
 		if kind == kindInfo && name == "" {
 			return false
 		}
+		name = truncateText(name)
 		formatNode(buf, node, role, name, depth)
-		return kind == kindInteractive
+		if kind == kindInteractive {
+			return true
+		}
+		// Status and alert are important signals (error messages, confirmations)
+		// that must retain parent containers in all modes — losing "Invalid
+		// password" because it's inside a banner wrapper is a real problem.
+		if role == "status" || role == "alert" {
+			return true
+		}
+		// Other info nodes (headings, labels, images) don't retain parents
+		// in default/interactive modes — a nav with only headings is pruned.
+		// In all mode, info nodes DO retain parents so text-only containers
+		// like a nav with paragraphs are shown.
+		return mode == ModeAll
 
 	default: // kindCollapse
 		hasInteractive := false
 		for _, childID := range childMap[nodeID] {
-			if walkTree(buf, childID, nodeMap, childMap, depth) {
+			if walkTree(buf, childID, nodeMap, childMap, depth, mode) {
 				hasInteractive = true
 			}
 		}
@@ -231,6 +310,9 @@ func formatNode(buf *strings.Builder, node *proto.AccessibilityAXNode, role, nam
 	roleStr := role
 	if role == "LabelText" {
 		roleStr = "label"
+	}
+	if role == "StaticText" {
+		roleStr = "text"
 	}
 	if role == "heading" {
 		if lvl := nodeProperty(node, "level"); lvl != "" {
@@ -312,6 +394,15 @@ func collectStaticText(
 		}
 	}
 	return strings.Join(parts, "")
+}
+
+// truncateText truncates s to maxTextLength runes, appending "..." if truncated.
+func truncateText(s string) string {
+	runes := []rune(s)
+	if len(runes) <= maxTextLength {
+		return s
+	}
+	return string(runes[:maxTextLength-3]) + "..."
 }
 
 // axStr extracts the string value from an AXValue, or "" if nil/empty.
