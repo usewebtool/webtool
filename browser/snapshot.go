@@ -33,7 +33,7 @@ const (
 
 // Snapshot returns a token-efficient text representation of the current page's
 // interactive elements, structured by accessibility landmarks and forms.
-func (b *Browser) Snapshot(ctx context.Context) (string, error) {
+func (b *Browser) Snapshot(ctx context.Context, mode SnapshotMode) (string, error) {
 	if err := b.Connect(); err != nil {
 		return "", err
 	}
@@ -54,7 +54,7 @@ func (b *Browser) Snapshot(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("getting accessibility tree: %w", err)
 	}
 
-	return formatSnapshot(info.URL, info.Title, result.Nodes, ModeDefault), nil
+	return formatSnapshot(info.URL, info.Title, result.Nodes, mode), nil
 }
 
 // nodeKind classifies how a node should be handled during tree walking.

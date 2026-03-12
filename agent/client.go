@@ -231,10 +231,17 @@ func (c *Client) Switch(ctx context.Context, index int) error {
 	return resp.Err()
 }
 
-// Snapshot returns a text snapshot of the current page's interactive elements.
-func (c *Client) Snapshot(ctx context.Context) (string, error) {
+// Snapshot returns a text snapshot of the current page's elements.
+func (c *Client) Snapshot(ctx context.Context, mode browser.SnapshotMode) (string, error) {
+	path := "/snapshot"
+	switch mode {
+	case browser.ModeInteractive:
+		path = "/snapshot?mode=interactive"
+	case browser.ModeAll:
+		path = "/snapshot?mode=all"
+	}
 	var resp SnapshotResponse
-	if err := c.do(ctx, "GET", "/snapshot", nil, &resp); err != nil {
+	if err := c.do(ctx, "GET", path, nil, &resp); err != nil {
 		return "", err
 	}
 	if err := resp.Err(); err != nil {

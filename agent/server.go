@@ -224,10 +224,23 @@ func (s *Server) handleTabs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
+	mode := browser.ModeDefault
+	switch r.URL.Query().Get("mode") {
+	case "interactive":
+		mode = browser.ModeInteractive
+	case "all":
+		mode = browser.ModeAll
+	case "", "default":
+		// ModeDefault
+	default:
+		writeJSON(w, http.StatusBadRequest, Response{Error: "mode must be one of: default, interactive, all"})
+		return
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	snapshot, err := s.browser.Snapshot(r.Context())
+	snapshot, err := s.browser.Snapshot(r.Context(), mode)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
