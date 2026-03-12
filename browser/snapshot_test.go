@@ -215,8 +215,8 @@ func TestFormatSnapshot(t *testing.T) {
 					Properties: []*proto.AccessibilityAXProperty{prop("url", axVal("https://example.com/about"))}},
 			},
 			contains: []string{
-				`[110] link "Search" url="https://example.com/search"`,
-				`[111] link "About" url="https://example.com/about"`,
+				`[110] link "Search" url="/search"`,
+				`[111] link "About" url="/about"`,
 			},
 			excludes: []string{
 				"q=foo",

@@ -209,7 +209,7 @@ func formatSnapshot(url, title string, nodes []*proto.AccessibilityAXNode, mode 
 
 	walkTree(&buf, rootID, nodeMap, childMap, 0, mode)
 
-	return buf.String()
+	return formatLinks(buf.String(), url)
 }
 
 // walkTree recursively walks the AX tree, writing snapshot lines for relevant
@@ -522,6 +522,17 @@ func nodePropertyValue(node *proto.AccessibilityAXNode, name proto.Accessibility
 		}
 	}
 	return "", false
+}
+
+// formatLinks converts same-origin URLs to relative paths in the snapshot output.
+// If the page URL can't be parsed, the snapshot is returned unchanged.
+func formatLinks(snapshot, pageURL string) string {
+	u, err := url.Parse(pageURL)
+	if err != nil || u.Host == "" {
+		return snapshot
+	}
+	origin := strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Host)
+	return strings.ReplaceAll(snapshot, origin, "")
 }
 
 // stripQueryString removes the query string and fragment from a URL.
