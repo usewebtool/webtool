@@ -261,6 +261,11 @@ func walkTree(
 		if !hasInteractive {
 			return false
 		}
+		// For unnamed content containers (listitem, article), compute a
+		// synthetic summary from non-interactive descendant text.
+		if name == "" && contentContainerRoles[role] && mode != ModeInteractive {
+			name = collectContainerText(nodeID, nodeMap, childMap)
+		}
 		formatNode(buf, node, role, name, depth)
 		buf.WriteString(childBuf.String())
 		return true
@@ -394,6 +399,72 @@ func collectStaticText(
 		}
 	}
 	return strings.Join(parts, "")
+}
+
+// collectContainerText builds a synthetic summary for content containers
+// (listitem, article) by gathering non-interactive text from descendants.
+//
+// This gives the LLM enough context to identify repeated content units (inbox
+// rows, search results, product cards) without showing every StaticText node.
+// For example, a Gmail listitem might produce "John Doe | Mar 10" while its
+// interactive children (checkbox, subject link) are shown as separate lines.
+//
+// Key rules:
+//   - Interactive children are skipped entirely (not recursed into), since
+//     they already appear as their own lines in the snapshot.
+//   - StaticText fragments that are whitespace-only or single-character are
+//     skipped (decorative bullets, separators, etc.).
+//   - Non-interactive, non-StaticText children are recursed into, picking up
+//     text from formatting wrappers (spans, strongs, etc.).
+//   - Fragments are joined with " | " for scannable readability.
+//   - Result is truncated at maxTextLength.
+func collectContainerText(
+	nodeID proto.AccessibilityAXNodeID,
+	nodeMap map[proto.AccessibilityAXNodeID]*proto.AccessibilityAXNode,
+	childMap map[proto.AccessibilityAXNodeID][]proto.AccessibilityAXNodeID,
+) string {
+	var fragments []string
+	collectContainerTextWalk(nodeID, nodeMap, childMap, &fragments)
+
+	joined := strings.Join(fragments, " | ")
+	return truncateText(joined)
+}
+
+// collectContainerTextWalk is the recursive helper for collectContainerText.
+// It appends non-interactive text fragments to the provided slice.
+func collectContainerTextWalk(
+	nodeID proto.AccessibilityAXNodeID,
+	nodeMap map[proto.AccessibilityAXNodeID]*proto.AccessibilityAXNode,
+	childMap map[proto.AccessibilityAXNodeID][]proto.AccessibilityAXNodeID,
+	fragments *[]string,
+) {
+	for _, childID := range childMap[nodeID] {
+		child, ok := nodeMap[childID]
+		if !ok {
+			continue
+		}
+		role := axStr(child.Role)
+
+		// Skip interactive elements entirely — their text is already shown
+		// as separate child lines in the snapshot output.
+		if interactiveRoles[role] {
+			continue
+		}
+
+		if role == "StaticText" {
+			text := strings.TrimSpace(axStr(child.Name))
+			// Skip whitespace-only and single-char decorative text
+			// (bullets, separators, icons, etc.).
+			if len([]rune(text)) > 1 {
+				*fragments = append(*fragments, text)
+			}
+			continue
+		}
+
+		// Recurse into non-interactive wrappers (generic divs, spans,
+		// formatting elements) to pick up their StaticText descendants.
+		collectContainerTextWalk(childID, nodeMap, childMap, fragments)
+	}
 }
 
 // truncateText truncates s to maxTextLength runes, appending "..." if truncated.

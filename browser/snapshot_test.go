@@ -605,3 +605,342 @@ func TestFormatSnapshotModes(t *testing.T) {
 		})
 	}
 }
+
+func TestCollectStaticText(t *testing.T) {
+	buildMaps := func(nodes []*proto.AccessibilityAXNode) (
+		map[proto.AccessibilityAXNodeID]*proto.AccessibilityAXNode,
+		map[proto.AccessibilityAXNodeID][]proto.AccessibilityAXNodeID,
+	) {
+		nodeMap := make(map[proto.AccessibilityAXNodeID]*proto.AccessibilityAXNode, len(nodes))
+		childMap := make(map[proto.AccessibilityAXNodeID][]proto.AccessibilityAXNodeID, len(nodes))
+		for _, n := range nodes {
+			nodeMap[n.NodeID] = n
+			if len(n.ChildIDs) > 0 {
+				childMap[n.NodeID] = n.ChildIDs
+			}
+		}
+		return nodeMap, childMap
+	}
+
+	tests := []struct {
+		name  string
+		nodes []*proto.AccessibilityAXNode
+		root  proto.AccessibilityAXNodeID
+		want  string
+	}{
+		{
+			name: "collects direct StaticText children",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "label", Role: axVal("LabelText"), ChildIDs: []proto.AccessibilityAXNodeID{"t1", "t2"}},
+				{NodeID: "t1", ParentID: "label", Role: axVal("StaticText"), Name: axVal("First ")},
+				{NodeID: "t2", ParentID: "label", Role: axVal("StaticText"), Name: axVal("Name")},
+			},
+			root: "label",
+			want: "First Name",
+		},
+		{
+			name: "recurses into formatting wrappers",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "label", Role: axVal("LabelText"), ChildIDs: []proto.AccessibilityAXNodeID{"strong1"}},
+				{NodeID: "strong1", ParentID: "label", Role: axVal("generic"), ChildIDs: []proto.AccessibilityAXNodeID{"t1"}},
+				{NodeID: "t1", ParentID: "strong1", Role: axVal("StaticText"), Name: axVal("Bold text")},
+			},
+			root: "label",
+			want: "Bold text",
+		},
+		{
+			name: "skips empty StaticText",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "label", Role: axVal("LabelText"), ChildIDs: []proto.AccessibilityAXNodeID{"t1", "t2"}},
+				{NodeID: "t1", ParentID: "label", Role: axVal("StaticText"), Name: axVal("")},
+				{NodeID: "t2", ParentID: "label", Role: axVal("StaticText"), Name: axVal("Visible")},
+			},
+			root: "label",
+			want: "Visible",
+		},
+		{
+			name:  "returns empty for no children",
+			nodes: []*proto.AccessibilityAXNode{{NodeID: "label", Role: axVal("LabelText")}},
+			root:  "label",
+			want:  "",
+		},
+		{
+			name: "handles missing child node",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "label", Role: axVal("LabelText"), ChildIDs: []proto.AccessibilityAXNodeID{"missing", "t1"}},
+				{NodeID: "t1", ParentID: "label", Role: axVal("StaticText"), Name: axVal("OK")},
+			},
+			root: "label",
+			want: "OK",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nodeMap, childMap := buildMaps(tt.nodes)
+			got := collectStaticText(tt.root, nodeMap, childMap)
+			if got != tt.want {
+				t.Errorf("collectStaticText() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCollectContainerText(t *testing.T) {
+	buildMaps := func(nodes []*proto.AccessibilityAXNode) (
+		map[proto.AccessibilityAXNodeID]*proto.AccessibilityAXNode,
+		map[proto.AccessibilityAXNodeID][]proto.AccessibilityAXNodeID,
+	) {
+		nodeMap := make(map[proto.AccessibilityAXNodeID]*proto.AccessibilityAXNode, len(nodes))
+		childMap := make(map[proto.AccessibilityAXNodeID][]proto.AccessibilityAXNodeID, len(nodes))
+		for _, n := range nodes {
+			nodeMap[n.NodeID] = n
+			if len(n.ChildIDs) > 0 {
+				childMap[n.NodeID] = n.ChildIDs
+			}
+		}
+		return nodeMap, childMap
+	}
+
+	tests := []struct {
+		name  string
+		nodes []*proto.AccessibilityAXNode
+		root  proto.AccessibilityAXNodeID
+		want  string
+	}{
+		{
+			name: "collects StaticText from direct children",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "li", Role: axVal("listitem"), ChildIDs: []proto.AccessibilityAXNodeID{"t1", "t2"}},
+				{NodeID: "t1", ParentID: "li", Role: axVal("StaticText"), Name: axVal("John Doe")},
+				{NodeID: "t2", ParentID: "li", Role: axVal("StaticText"), Name: axVal("Mar 10")},
+			},
+			root: "li",
+			want: "John Doe | Mar 10",
+		},
+		{
+			name: "skips interactive children entirely",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "li", Role: axVal("listitem"), ChildIDs: []proto.AccessibilityAXNodeID{"t1", "link1", "t2"}},
+				{NodeID: "t1", ParentID: "li", Role: axVal("StaticText"), Name: axVal("John Doe")},
+				{NodeID: "link1", ParentID: "li", Role: axVal("link"), Name: axVal("Meeting Tomorrow"), ChildIDs: []proto.AccessibilityAXNodeID{"linktext"}},
+				{NodeID: "linktext", ParentID: "link1", Role: axVal("StaticText"), Name: axVal("Meeting Tomorrow")},
+				{NodeID: "t2", ParentID: "li", Role: axVal("StaticText"), Name: axVal("Mar 10")},
+			},
+			root: "li",
+			want: "John Doe | Mar 10",
+		},
+		{
+			name: "recurses into generic wrappers",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "li", Role: axVal("listitem"), ChildIDs: []proto.AccessibilityAXNodeID{"div1"}},
+				{NodeID: "div1", ParentID: "li", Role: axVal("generic"), ChildIDs: []proto.AccessibilityAXNodeID{"span1", "span2"}},
+				{NodeID: "span1", ParentID: "div1", Role: axVal("generic"), ChildIDs: []proto.AccessibilityAXNodeID{"t1"}},
+				{NodeID: "t1", ParentID: "span1", Role: axVal("StaticText"), Name: axVal("Sender")},
+				{NodeID: "span2", ParentID: "div1", Role: axVal("generic"), ChildIDs: []proto.AccessibilityAXNodeID{"t2"}},
+				{NodeID: "t2", ParentID: "span2", Role: axVal("StaticText"), Name: axVal("Date")},
+			},
+			root: "li",
+			want: "Sender | Date",
+		},
+		{
+			name: "skips single-char decorative text",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "li", Role: axVal("listitem"), ChildIDs: []proto.AccessibilityAXNodeID{"t1", "t2", "t3"}},
+				{NodeID: "t1", ParentID: "li", Role: axVal("StaticText"), Name: axVal("Price")},
+				{NodeID: "t2", ParentID: "li", Role: axVal("StaticText"), Name: axVal("·")},
+				{NodeID: "t3", ParentID: "li", Role: axVal("StaticText"), Name: axVal("$29.99")},
+			},
+			root: "li",
+			want: "Price | $29.99",
+		},
+		{
+			name: "skips whitespace-only text",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "li", Role: axVal("listitem"), ChildIDs: []proto.AccessibilityAXNodeID{"t1", "t2", "t3"}},
+				{NodeID: "t1", ParentID: "li", Role: axVal("StaticText"), Name: axVal("Hello")},
+				{NodeID: "t2", ParentID: "li", Role: axVal("StaticText"), Name: axVal("   ")},
+				{NodeID: "t3", ParentID: "li", Role: axVal("StaticText"), Name: axVal("World")},
+			},
+			root: "li",
+			want: "Hello | World",
+		},
+		{
+			name: "returns empty when all text is filtered out",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "li", Role: axVal("listitem"), ChildIDs: []proto.AccessibilityAXNodeID{"t1", "t2"}},
+				{NodeID: "t1", ParentID: "li", Role: axVal("StaticText"), Name: axVal("·")},
+				{NodeID: "t2", ParentID: "li", Role: axVal("StaticText"), Name: axVal(" ")},
+			},
+			root: "li",
+			want: "",
+		},
+		{
+			name: "returns empty when only interactive children",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "li", Role: axVal("listitem"), ChildIDs: []proto.AccessibilityAXNodeID{"btn1"}},
+				{NodeID: "btn1", ParentID: "li", Role: axVal("button"), Name: axVal("Click me")},
+			},
+			root: "li",
+			want: "",
+		},
+		{
+			name: "truncates long summary",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "li", Role: axVal("listitem"), ChildIDs: []proto.AccessibilityAXNodeID{"t1", "t2"}},
+				{NodeID: "t1", ParentID: "li", Role: axVal("StaticText"), Name: axVal(strings.Repeat("A", 100))},
+				{NodeID: "t2", ParentID: "li", Role: axVal("StaticText"), Name: axVal(strings.Repeat("B", 100))},
+			},
+			root: "li",
+			// "AAA...A | BBB...B" total > 160, truncated to 157 + "..."
+			want: truncateText(strings.Repeat("A", 100) + " | " + strings.Repeat("B", 100)),
+		},
+		{
+			name: "skips buttons deep inside wrappers",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "art", Role: axVal("article"), ChildIDs: []proto.AccessibilityAXNodeID{"div1", "div2"}},
+				{NodeID: "div1", ParentID: "art", Role: axVal("generic"), ChildIDs: []proto.AccessibilityAXNodeID{"t1", "btn1"}},
+				{NodeID: "t1", ParentID: "div1", Role: axVal("StaticText"), Name: axVal("Product Name")},
+				{NodeID: "btn1", ParentID: "div1", Role: axVal("button"), Name: axVal("Add to Cart")},
+				{NodeID: "div2", ParentID: "art", Role: axVal("generic"), ChildIDs: []proto.AccessibilityAXNodeID{"t2"}},
+				{NodeID: "t2", ParentID: "div2", Role: axVal("StaticText"), Name: axVal("$29.99")},
+			},
+			root: "art",
+			want: "Product Name | $29.99",
+		},
+		{
+			name: "handles missing child nodes gracefully",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "li", Role: axVal("listitem"), ChildIDs: []proto.AccessibilityAXNodeID{"t1", "missing", "t2"}},
+				{NodeID: "t1", ParentID: "li", Role: axVal("StaticText"), Name: axVal("Hello")},
+				{NodeID: "t2", ParentID: "li", Role: axVal("StaticText"), Name: axVal("World")},
+			},
+			root: "li",
+			want: "Hello | World",
+		},
+		{
+			name: "returns empty for no children",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "li", Role: axVal("listitem")},
+			},
+			root: "li",
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nodeMap, childMap := buildMaps(tt.nodes)
+			got := collectContainerText(tt.root, nodeMap, childMap)
+			if got != tt.want {
+				t.Errorf("collectContainerText() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestContainerSummaryInSnapshot(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     SnapshotMode
+		nodes    []*proto.AccessibilityAXNode
+		contains []string
+		excludes []string
+	}{
+		{
+			name: "listitem gets synthetic summary in default mode",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"list1"}},
+				{NodeID: "list1", ParentID: "root", Role: axVal("list"), BackendDOMNodeID: 300, ChildIDs: []proto.AccessibilityAXNodeID{"li1"}},
+				{NodeID: "li1", ParentID: "list1", Role: axVal("listitem"), BackendDOMNodeID: 301, ChildIDs: []proto.AccessibilityAXNodeID{"t1", "cb1", "link1", "t2"}},
+				{NodeID: "t1", ParentID: "li1", Role: axVal("StaticText"), Name: axVal("John Doe"), BackendDOMNodeID: 302},
+				{NodeID: "cb1", ParentID: "li1", Role: axVal("checkbox"), Name: axVal("Select"), BackendDOMNodeID: 303},
+				{NodeID: "link1", ParentID: "li1", Role: axVal("link"), Name: axVal("Meeting Tomorrow"), BackendDOMNodeID: 304},
+				{NodeID: "t2", ParentID: "li1", Role: axVal("StaticText"), Name: axVal("Mar 10"), BackendDOMNodeID: 305},
+			},
+			contains: []string{
+				`[301] listitem "John Doe | Mar 10"`,
+				`    [303] checkbox "Select"`,
+				`    [304] link "Meeting Tomorrow"`,
+			},
+		},
+		{
+			name: "named article keeps its real name, no synthetic summary",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"art1"}},
+				{NodeID: "art1", ParentID: "root", Role: axVal("article"), Name: axVal("Blog Post"), BackendDOMNodeID: 310, ChildIDs: []proto.AccessibilityAXNodeID{"t1", "link1"}},
+				{NodeID: "t1", ParentID: "art1", Role: axVal("StaticText"), Name: axVal("Some extra text"), BackendDOMNodeID: 311},
+				{NodeID: "link1", ParentID: "art1", Role: axVal("link"), Name: axVal("Read more"), BackendDOMNodeID: 312},
+			},
+			contains: []string{
+				`[310] article "Blog Post"`,
+				`  [312] link "Read more"`,
+			},
+			excludes: []string{"Some extra text"},
+		},
+		{
+			name: "interactive mode skips synthetic summary",
+			mode: ModeInteractive,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"list1"}},
+				{NodeID: "list1", ParentID: "root", Role: axVal("list"), BackendDOMNodeID: 320, ChildIDs: []proto.AccessibilityAXNodeID{"li1"}},
+				{NodeID: "li1", ParentID: "list1", Role: axVal("listitem"), BackendDOMNodeID: 321, ChildIDs: []proto.AccessibilityAXNodeID{"t1", "link1"}},
+				{NodeID: "t1", ParentID: "li1", Role: axVal("StaticText"), Name: axVal("John Doe"), BackendDOMNodeID: 322},
+				{NodeID: "link1", ParentID: "li1", Role: axVal("link"), Name: axVal("Subject"), BackendDOMNodeID: 323},
+			},
+			contains: []string{
+				"  [321] listitem\n",
+				`    [323] link "Subject"`,
+			},
+			excludes: []string{"John Doe"},
+		},
+		{
+			name: "all mode still gets synthetic summary",
+			mode: ModeAll,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"list1"}},
+				{NodeID: "list1", ParentID: "root", Role: axVal("list"), BackendDOMNodeID: 330, ChildIDs: []proto.AccessibilityAXNodeID{"li1"}},
+				{NodeID: "li1", ParentID: "list1", Role: axVal("listitem"), BackendDOMNodeID: 331, ChildIDs: []proto.AccessibilityAXNodeID{"t1", "link1"}},
+				{NodeID: "t1", ParentID: "li1", Role: axVal("StaticText"), Name: axVal("Sender Name"), BackendDOMNodeID: 332},
+				{NodeID: "link1", ParentID: "li1", Role: axVal("link"), Name: axVal("Subject"), BackendDOMNodeID: 333},
+			},
+			contains: []string{
+				`[331] listitem "Sender Name"`,
+			},
+		},
+		{
+			name: "non-content-container structural role does not get summary",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"nav1"}},
+				{NodeID: "nav1", ParentID: "root", Role: axVal("navigation"), BackendDOMNodeID: 340, ChildIDs: []proto.AccessibilityAXNodeID{"t1", "link1"}},
+				{NodeID: "t1", ParentID: "nav1", Role: axVal("StaticText"), Name: axVal("Menu Label"), BackendDOMNodeID: 341},
+				{NodeID: "link1", ParentID: "nav1", Role: axVal("link"), Name: axVal("Home"), BackendDOMNodeID: 342},
+			},
+			contains: []string{
+				"[340] navigation\n",
+				`  [342] link "Home"`,
+			},
+			excludes: []string{"Menu Label"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatSnapshot("https://example.com", "Test", tt.nodes, tt.mode)
+
+			for _, want := range tt.contains {
+				if !strings.Contains(got, want) {
+					t.Errorf("output missing expected line %q\n\ngot:\n%s", want, got)
+				}
+			}
+			for _, reject := range tt.excludes {
+				if strings.Contains(got, reject) {
+					t.Errorf("output should not contain %q\n\ngot:\n%s", reject, got)
+				}
+			}
+		})
+	}
+}
