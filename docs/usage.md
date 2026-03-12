@@ -75,13 +75,29 @@ webtool forward
 
 #### `snapshot`
 
-Print a text snapshot of interactive elements on the current page. Returns a compact, token-efficient list of elements with their backendNodeId, role, and label.
+Print a text snapshot of the current page. Returns a compact, token-efficient list of elements with their backendNodeId, role, and label. The core tool in the snapshot → reason → action loop.
 
 ```bash
-webtool snapshot
+webtool snapshot                   # default mode
+webtool snapshot -i                # interactive only
+webtool snapshot -a                # all content
 ```
 
-Output format:
+| Flag | Description |
+|------|-------------|
+| `-i`, `--interactive` | Show only interactive elements and structural grouping. Strips headings, images, and labels. Use when you only need to find buttons, links, and form controls — e.g. filling out a form or navigating a menu. Lowest token count. |
+| `-a`, `--all` | Show everything in default mode plus text content (paragraphs, blockquotes, code blocks, static text). Use when you need to read or compare page content — e.g. extracting article text, comparing search results, or verifying displayed information. Highest token count. |
+| (none) | **Default mode.** Interactive elements + structural grouping + headings + content-container summaries + status/alert messages. The workhorse mode for most tasks. Content containers like list items and articles show a summary of their non-interactive text (sender, date, price, etc.) so you can identify items without extracting each one. |
+
+The flags are mutually exclusive — use at most one.
+
+**When to use each mode:**
+
+- **Default** — start here. Gives you enough context to identify elements and understand page structure. Content-container summaries let you scan repeated items (inbox rows, search results, product cards) without reading every detail.
+- **Interactive (`-i`)** — use when the page is complex and you already know what you're looking for. Cuts noise from headings, images, and labels to focus purely on actionable elements.
+- **All (`-a`)** — use when you need to read page content, not just interact with it. Shows paragraphs, static text, blockquotes, and code blocks. If you still need more detail, use `webtool extract <id>` on a specific element.
+
+**Output format:**
 
 ```
 [url] https://example.com
@@ -102,9 +118,19 @@ Output format:
 Each element line: `[backendNodeId] role "name"` followed by optional attributes:
 - `value="..."` — current input value
 - `url="..."` — link href (query params stripped)
-- State flags: `focused`, `checked`, `disabled`, `readonly`, `required`, `selected`, `expanded`
+- State flags: `focused`, `checked`, `disabled`, `readonly`, `required`, `selected`, `expanded`, `collapsed`, `invalid`
 
 Structural containers (landmarks, forms, lists, articles, sections) are shown with 2-space indentation. Headings show their level as `heading[1]`, `heading[2]`, etc.
+
+**Content-container summaries** (default and all modes): List items and articles without an explicit accessible name show a synthetic summary built from their non-interactive text, joined with ` | `. For example, an inbox row might show:
+
+```
+[201] listitem "John Doe | Mar 10"
+  [200] checkbox "Select"
+  [202] link "Meeting Tomorrow - Hi, can we meet..."
+```
+
+All text in snapshots is truncated to 160 characters. Use `webtool extract <id>` to read the full content of any element.
 
 #### `extract [selector]`
 
