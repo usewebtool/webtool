@@ -241,12 +241,12 @@ func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	snapshot, err := s.browser.Snapshot(r.Context(), mode)
+	ps, err := s.browser.Snapshot(r.Context(), mode)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, SnapshotResponse{Snapshot: snapshot})
+	writeJSON(w, http.StatusOK, SnapshotResponse{Snapshot: ps.String()})
 }
 
 func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {

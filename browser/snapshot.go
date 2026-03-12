@@ -36,28 +36,28 @@ const (
 
 // Snapshot returns a token-efficient text representation of the current page's
 // interactive elements, structured by accessibility landmarks and forms.
-func (b *Browser) Snapshot(ctx context.Context, mode SnapshotMode) (string, error) {
+func (b *Browser) Snapshot(ctx context.Context, mode SnapshotMode) (*PageSnapshot, error) {
 	if err := b.Connect(); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	page, err := b.activePage()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	page = page.Context(ctx)
 
 	info, err := page.Info()
 	if err != nil {
-		return "", fmt.Errorf("getting page info: %w", err)
+		return nil, fmt.Errorf("getting page info: %w", err)
 	}
 
 	result, err := proto.AccessibilityGetFullAXTree{}.Call(page)
 	if err != nil {
-		return "", fmt.Errorf("getting accessibility tree: %w", err)
+		return nil, fmt.Errorf("getting accessibility tree: %w", err)
 	}
 
-	return formatSnapshot(info.URL, info.Title, result.Nodes, mode), nil
+	return NewPageSnapshot(info.URL, info.Title, result.Nodes, mode)
 }
 
 // nodeKind classifies how a node should be handled during tree walking.
@@ -179,16 +179,44 @@ func classify(role string, hasName bool, mode SnapshotMode) nodeKind {
 	return kindCollapse
 }
 
-// formatSnapshot builds the text snapshot from raw AX tree nodes.
-func formatSnapshot(url, title string, nodes []*proto.AccessibilityAXNode, mode SnapshotMode) string {
-	if len(nodes) == 0 {
-		return fmt.Sprintf("[url] %s\n[title] %s\n", url, title)
+// PageSnapshot holds the parsed accessibility tree and page metadata needed
+// to produce a text snapshot. Use NewPageSnapshot to create one, then call
+// String() to render the text output.
+type PageSnapshot struct {
+	// URL is the full page URL as shown in the browser address bar.
+	URL string
+	// Title is the page title.
+	Title string
+	// Origin is the scheme+host (e.g. "https://example.com") used to
+	// convert same-origin link URLs to relative paths. Empty if the page
+	// URL could not be parsed.
+	Origin string
+	// Mode controls snapshot verbosity (default, interactive, all).
+	Mode     SnapshotMode
+	nodeMap  map[proto.AccessibilityAXNodeID]*proto.AccessibilityAXNode
+	childMap map[proto.AccessibilityAXNodeID][]proto.AccessibilityAXNodeID
+	rootID   proto.AccessibilityAXNodeID
+}
+
+// NewPageSnapshot builds a PageSnapshot from raw AX tree nodes.
+// Nil nodes are silently filtered. Returns an error if the resulting
+// node list is empty.
+func NewPageSnapshot(pageURL, title string, nodes []*proto.AccessibilityAXNode, mode SnapshotMode) (*PageSnapshot, error) {
+	// Filter nil nodes.
+	filtered := make([]*proto.AccessibilityAXNode, 0, len(nodes))
+	for _, n := range nodes {
+		if n != nil {
+			filtered = append(filtered, n)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil, fmt.Errorf("accessibility tree is empty")
 	}
 
 	// Build lookup maps.
-	nodeMap := make(map[proto.AccessibilityAXNodeID]*proto.AccessibilityAXNode, len(nodes))
-	childMap := make(map[proto.AccessibilityAXNodeID][]proto.AccessibilityAXNodeID, len(nodes))
-	for _, n := range nodes {
+	nodeMap := make(map[proto.AccessibilityAXNodeID]*proto.AccessibilityAXNode, len(filtered))
+	childMap := make(map[proto.AccessibilityAXNodeID][]proto.AccessibilityAXNodeID, len(filtered))
+	for _, n := range filtered {
 		nodeMap[n.NodeID] = n
 		if len(n.ChildIDs) > 0 {
 			childMap[n.NodeID] = n.ChildIDs
@@ -197,19 +225,36 @@ func formatSnapshot(url, title string, nodes []*proto.AccessibilityAXNode, mode 
 
 	// Find root (first node without a parent).
 	var rootID proto.AccessibilityAXNodeID
-	for _, n := range nodes {
+	for _, n := range filtered {
 		if n.ParentID == "" {
 			rootID = n.NodeID
 			break
 		}
 	}
 
+	// Compute origin for URL relativization.
+	var origin string
+	if u, err := url.Parse(pageURL); err == nil && u.Host != "" {
+		origin = strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Host)
+	}
+
+	return &PageSnapshot{
+		URL:      pageURL,
+		Title:    title,
+		Origin:   origin,
+		Mode:     mode,
+		nodeMap:  nodeMap,
+		childMap: childMap,
+		rootID:   rootID,
+	}, nil
+}
+
+// String renders the text snapshot. Implements fmt.Stringer.
+func (ps *PageSnapshot) String() string {
 	var buf strings.Builder
-	fmt.Fprintf(&buf, "[url] %s\n[title] %s\n", url, title)
-
-	walkTree(&buf, rootID, nodeMap, childMap, 0, mode)
-
-	return formatLinks(buf.String(), url)
+	fmt.Fprintf(&buf, "[url] %s\n[title] %s\n", ps.URL, ps.Title)
+	ps.walkTree(&buf, ps.rootID, 0)
+	return buf.String()
 }
 
 // walkTree recursively walks the AX tree, writing snapshot lines for relevant
@@ -217,19 +262,12 @@ func formatSnapshot(url, title string, nodes []*proto.AccessibilityAXNode, mode 
 // and interactive modes that means interactive elements; in all mode it also
 // includes info nodes. Structural containers are only emitted when at least one
 // retainable descendant exists (prevents empty nav/form/list noise).
-func walkTree(
-	buf *strings.Builder,
-	nodeID proto.AccessibilityAXNodeID,
-	nodeMap map[proto.AccessibilityAXNodeID]*proto.AccessibilityAXNode,
-	childMap map[proto.AccessibilityAXNodeID][]proto.AccessibilityAXNodeID,
-	depth int,
-	mode SnapshotMode,
-) bool {
+func (ps *PageSnapshot) walkTree(buf *strings.Builder, nodeID proto.AccessibilityAXNodeID, depth int) bool {
 	if depth > maxSnapshotDepth {
 		return false
 	}
 
-	node, ok := nodeMap[nodeID]
+	node, ok := ps.nodeMap[nodeID]
 	if !ok {
 		return false
 	}
@@ -237,8 +275,8 @@ func walkTree(
 	// Ignored nodes: don't show, but recurse children at same depth.
 	if node.Ignored {
 		hasInteractive := false
-		for _, childID := range childMap[nodeID] {
-			if walkTree(buf, childID, nodeMap, childMap, depth, mode) {
+		for _, childID := range ps.childMap[nodeID] {
+			if ps.walkTree(buf, childID, depth) {
 				hasInteractive = true
 			}
 		}
@@ -247,7 +285,7 @@ func walkTree(
 
 	role := axStr(node.Role)
 	name := axStr(node.Name)
-	kind := classify(role, name != "", mode)
+	kind := classify(role, name != "", ps.Mode)
 
 	switch kind {
 	case kindStructural:
@@ -256,8 +294,8 @@ func walkTree(
 		// container is silently pruned from output.
 		var childBuf strings.Builder
 		hasInteractive := false
-		for _, childID := range childMap[nodeID] {
-			if walkTree(&childBuf, childID, nodeMap, childMap, depth+1, mode) {
+		for _, childID := range ps.childMap[nodeID] {
+			if ps.walkTree(&childBuf, childID, depth+1) {
 				hasInteractive = true
 			}
 		}
@@ -266,29 +304,29 @@ func walkTree(
 		}
 		// For unnamed content containers (listitem, article), compute a
 		// synthetic summary from non-interactive descendant text.
-		if name == "" && contentContainerRoles[role] && mode != ModeInteractive {
-			name = collectContainerText(nodeID, nodeMap, childMap)
+		if name == "" && contentContainerRoles[role] && ps.Mode != ModeInteractive {
+			name = collectContainerText(nodeID, ps.nodeMap, ps.childMap)
 		}
-		formatNode(buf, node, role, name, depth)
+		ps.formatNode(buf, node, role, name, depth)
 		buf.WriteString(childBuf.String())
 		return true
 
 	case kindInteractive, kindInfo:
 		// If the node has no name, try to resolve it from StaticText descendants.
 		if name == "" {
-			name = collectStaticText(nodeID, nodeMap, childMap)
+			name = collectStaticText(nodeID, ps.nodeMap, ps.childMap)
 		}
 		// Skip info nodes that have no text to show.
 		if kind == kindInfo && name == "" {
 			return false
 		}
 		name = truncate(name, maxTextLength)
-		formatNode(buf, node, role, name, depth)
+		ps.formatNode(buf, node, role, name, depth)
 		// Always recurse into children — interactive elements can be nested
 		// inside headings, links, or other nodes (e.g. Gmail search textbox
 		// inside a heading). Without this, nested elements are silently lost.
-		for _, childID := range childMap[nodeID] {
-			walkTree(buf, childID, nodeMap, childMap, depth+1, mode)
+		for _, childID := range ps.childMap[nodeID] {
+			ps.walkTree(buf, childID, depth+1)
 		}
 		if kind == kindInteractive {
 			return true
@@ -296,12 +334,12 @@ func walkTree(
 		if role == "status" || role == "alert" {
 			return true
 		}
-		return mode == ModeAll
+		return ps.Mode == ModeAll
 
 	default: // kindCollapse
 		hasInteractive := false
-		for _, childID := range childMap[nodeID] {
-			if walkTree(buf, childID, nodeMap, childMap, depth, mode) {
+		for _, childID := range ps.childMap[nodeID] {
+			if ps.walkTree(buf, childID, depth) {
 				hasInteractive = true
 			}
 		}
@@ -310,7 +348,7 @@ func walkTree(
 }
 
 // formatNode writes a single snapshot line for a node.
-func formatNode(buf *strings.Builder, node *proto.AccessibilityAXNode, role, name string, depth int) {
+func (ps *PageSnapshot) formatNode(buf *strings.Builder, node *proto.AccessibilityAXNode, role, name string, depth int) {
 	indent := strings.Repeat("  ", depth)
 
 	// Map AX role names to more readable display names.
@@ -344,9 +382,11 @@ func formatNode(buf *strings.Builder, node *proto.AccessibilityAXNode, role, nam
 		fmt.Fprintf(buf, " value=%q", val)
 	}
 
-	// URL for links (stripped of query params and truncated to save tokens).
+	// URL for links (stripped of query params, relativized, and truncated).
 	if linkURL := nodeProperty(node, "url"); linkURL != "" {
-		fmt.Fprintf(buf, " url=%q", truncate(stripQueryString(linkURL), maxURLLength))
+		linkURL = stripQueryString(linkURL)
+		linkURL = ps.relativizeURL(linkURL)
+		fmt.Fprintf(buf, " url=%q", truncate(linkURL, maxURLLength))
 	}
 
 	// State flags
@@ -487,7 +527,6 @@ func truncate(s string, maxLen int) string {
 	return string(runes[:maxLen-3]) + "..."
 }
 
-
 // axStr extracts the string value from an AXValue, or "" if nil/empty.
 func axStr(v *proto.AccessibilityAXValue) string {
 	if v == nil {
@@ -523,15 +562,13 @@ func nodePropertyValue(node *proto.AccessibilityAXNode, name proto.Accessibility
 	return "", false
 }
 
-// formatLinks converts same-origin URLs to relative paths in the snapshot output.
-// If the page URL can't be parsed, the snapshot is returned unchanged.
-func formatLinks(snapshot, pageURL string) string {
-	u, err := url.Parse(pageURL)
-	if err != nil || u.Host == "" {
-		return snapshot
+// relativizeURL converts a same-origin URL to a relative path by stripping
+// the origin prefix. Cross-origin URLs are returned unchanged.
+func (ps *PageSnapshot) relativizeURL(rawURL string) string {
+	if ps.Origin != "" && strings.HasPrefix(rawURL, ps.Origin) {
+		return rawURL[len(ps.Origin):]
 	}
-	origin := strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Host)
-	return strings.ReplaceAll(snapshot, origin, "")
+	return rawURL
 }
 
 // stripQueryString removes the query string and fragment from a URL.

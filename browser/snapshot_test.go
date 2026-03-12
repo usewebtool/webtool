@@ -29,6 +29,18 @@ func prop(name proto.AccessibilityAXPropertyName, val *proto.AccessibilityAXValu
 	return &proto.AccessibilityAXProperty{Name: name, Value: val}
 }
 
+func TestNewPageSnapshotEmptyNodes(t *testing.T) {
+	_, err := NewPageSnapshot("https://example.com", "Example", nil, ModeDefault)
+	if err == nil {
+		t.Fatal("expected error for empty nodes, got nil")
+	}
+	// All-nil nodes should also error.
+	_, err = NewPageSnapshot("https://example.com", "Example", []*proto.AccessibilityAXNode{nil, nil}, ModeDefault)
+	if err == nil {
+		t.Fatal("expected error for all-nil nodes, got nil")
+	}
+}
+
 func TestFormatSnapshot(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -38,16 +50,6 @@ func TestFormatSnapshot(t *testing.T) {
 		contains []string // lines that must appear in output
 		excludes []string // lines that must NOT appear in output
 	}{
-		{
-			name:  "empty tree",
-			url:   "https://example.com",
-			title: "Example",
-			nodes: nil,
-			contains: []string{
-				"[url] https://example.com",
-				"[title] Example",
-			},
-		},
 		{
 			name:  "form with inputs",
 			url:   "https://example.com/login",
@@ -204,7 +206,7 @@ func TestFormatSnapshot(t *testing.T) {
 			},
 		},
 		{
-			name:  "link with url stripped of query params",
+			name:  "link URLs relativized but page URL stays full",
 			url:   "https://example.com",
 			title: "Test",
 			nodes: []*proto.AccessibilityAXNode{
@@ -215,6 +217,7 @@ func TestFormatSnapshot(t *testing.T) {
 					Properties: []*proto.AccessibilityAXProperty{prop("url", axVal("https://example.com/about"))}},
 			},
 			contains: []string{
+				"[url] https://example.com",
 				`[110] link "Search" url="/search"`,
 				`[111] link "About" url="/about"`,
 			},
@@ -346,7 +349,11 @@ func TestFormatSnapshot(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatSnapshot(tt.url, tt.title, tt.nodes, ModeDefault)
+			ps, err := NewPageSnapshot(tt.url, tt.title, tt.nodes, ModeDefault)
+			if err != nil {
+				t.Fatalf("NewPageSnapshot error: %v", err)
+			}
+			got := ps.String()
 
 			for _, want := range tt.contains {
 				if !strings.Contains(got, want) {
@@ -648,7 +655,11 @@ func TestFormatSnapshotModes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatSnapshot("https://example.com", "Test", tt.nodes, tt.mode)
+			ps, err := NewPageSnapshot("https://example.com", "Test", tt.nodes, tt.mode)
+			if err != nil {
+				t.Fatalf("NewPageSnapshot error: %v", err)
+			}
+			got := ps.String()
 
 			for _, want := range tt.contains {
 				if !strings.Contains(got, want) {
@@ -987,7 +998,11 @@ func TestContainerSummaryInSnapshot(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatSnapshot("https://example.com", "Test", tt.nodes, tt.mode)
+			ps, err := NewPageSnapshot("https://example.com", "Test", tt.nodes, tt.mode)
+			if err != nil {
+				t.Fatalf("NewPageSnapshot error: %v", err)
+			}
+			got := ps.String()
 
 			for _, want := range tt.contains {
 				if !strings.Contains(got, want) {
