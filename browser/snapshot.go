@@ -284,19 +284,18 @@ func walkTree(
 		}
 		name = truncate(name, maxTextLength)
 		formatNode(buf, node, role, name, depth)
+		// Always recurse into children — interactive elements can be nested
+		// inside headings, links, or other nodes (e.g. Gmail search textbox
+		// inside a heading). Without this, nested elements are silently lost.
+		for _, childID := range childMap[nodeID] {
+			walkTree(buf, childID, nodeMap, childMap, depth+1, mode)
+		}
 		if kind == kindInteractive {
 			return true
 		}
-		// Status and alert are important signals (error messages, confirmations)
-		// that must retain parent containers in all modes — losing "Invalid
-		// password" because it's inside a banner wrapper is a real problem.
 		if role == "status" || role == "alert" {
 			return true
 		}
-		// Other info nodes (headings, labels, images) don't retain parents
-		// in default/interactive modes — a nav with only headings is pruned.
-		// In all mode, info nodes DO retain parents so text-only containers
-		// like a nav with paragraphs are shown.
 		return mode == ModeAll
 
 	default: // kindCollapse
