@@ -586,6 +586,48 @@ func TestFormatSnapshotModes(t *testing.T) {
 			contains: []string{strings.Repeat("x", 157) + "..."},
 			excludes: []string{strings.Repeat("x", 158)},
 		},
+		{
+			name: "invalid state flag shown on form control",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"input1"}},
+				{NodeID: "input1", ParentID: "root", Role: axVal("textbox"), Name: axVal("Email"), BackendDOMNodeID: 400,
+					Properties: []*proto.AccessibilityAXProperty{prop("invalid", axBoolVal(true))}},
+			},
+			contains: []string{`[400] textbox "Email" invalid`},
+		},
+		{
+			name: "collapsed shown when expanded is false",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"btn1"}},
+				{NodeID: "btn1", ParentID: "root", Role: axVal("button"), Name: axVal("Menu"), BackendDOMNodeID: 401,
+					Properties: []*proto.AccessibilityAXProperty{prop("expanded", axBoolVal(false))}},
+			},
+			contains: []string{`[401] button "Menu" collapsed`},
+			excludes: []string{"expanded"},
+		},
+		{
+			name: "expanded shown when expanded is true",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"btn1"}},
+				{NodeID: "btn1", ParentID: "root", Role: axVal("button"), Name: axVal("Menu"), BackendDOMNodeID: 402,
+					Properties: []*proto.AccessibilityAXProperty{prop("expanded", axBoolVal(true))}},
+			},
+			contains: []string{`[402] button "Menu" expanded`},
+			excludes: []string{"collapsed"},
+		},
+		{
+			name: "no expanded or collapsed when property absent",
+			mode: ModeDefault,
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"btn1"}},
+				{NodeID: "btn1", ParentID: "root", Role: axVal("button"), Name: axVal("Submit"), BackendDOMNodeID: 403},
+			},
+			contains: []string{`[403] button "Submit"`},
+			excludes: []string{"expanded", "collapsed"},
+		},
 	}
 
 	for _, tt := range tests {

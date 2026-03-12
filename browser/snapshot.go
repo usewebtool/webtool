@@ -366,8 +366,17 @@ func formatNode(buf *strings.Builder, node *proto.AccessibilityAXNode, role, nam
 	if nodePropertyBool(node, "selected") {
 		buf.WriteString(" selected")
 	}
-	if nodePropertyBool(node, "expanded") {
-		buf.WriteString(" expanded")
+	if nodePropertyBool(node, "invalid") {
+		buf.WriteString(" invalid")
+	}
+	// Distinguish expanded (true), collapsed (false), and absent (no property).
+	// nodePropertyBool can't tell false from absent, so check existence first.
+	if val, exists := nodePropertyValue(node, "expanded"); exists {
+		if val == "true" {
+			buf.WriteString(" expanded")
+		} else {
+			buf.WriteString(" collapsed")
+		}
 	}
 
 	buf.WriteByte('\n')
@@ -497,6 +506,18 @@ func nodeProperty(node *proto.AccessibilityAXNode, name proto.AccessibilityAXPro
 // nodePropertyBool returns true if a named boolean property is "true".
 func nodePropertyBool(node *proto.AccessibilityAXNode, name proto.AccessibilityAXPropertyName) bool {
 	return nodeProperty(node, name) == "true"
+}
+
+// nodePropertyValue returns the string value and existence of a named property.
+// Unlike nodeProperty, this distinguishes "property absent" from "property set to
+// empty/false". Used for expanded/collapsed where absent and false mean different things.
+func nodePropertyValue(node *proto.AccessibilityAXNode, name proto.AccessibilityAXPropertyName) (string, bool) {
+	for _, p := range node.Properties {
+		if p.Name == name && p.Value != nil {
+			return p.Value.Value.Str(), true
+		}
+	}
+	return "", false
 }
 
 // stripQueryString removes the query string and fragment from a URL.
