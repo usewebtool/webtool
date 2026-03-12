@@ -10,7 +10,13 @@ import (
 var evalCmd = &cobra.Command{
 	Use:   "eval <js>",
 	Short: "Execute a JavaScript expression and print the result.",
-	Args:  cobra.ExactArgs(1),
+	Long: `Execute a JavaScript expression and print the result.
+
+Only expressions are supported, not statements (const, let, var).
+For multi-statement code, wrap in an IIFE:
+
+  webtool eval "(function(){ const a = 1; return a; })()"`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(cmd.Context(), timeoutFlag)
 		defer cancel()

@@ -237,7 +237,11 @@ webtool eval "window.location.href"
 webtool eval "document.querySelectorAll('a').length"
 ```
 
-Uses CDP `Runtime.evaluate` directly (not function-wrapped), so any valid JS expression works.
+Only expressions are supported, not statements (`const`, `let`, `var`). For multi-statement code, wrap in an IIFE:
+
+```bash
+webtool eval "(function(){ const a = 1; return a; })()"
+```
 
 ### Tab Management
 
