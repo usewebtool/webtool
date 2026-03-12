@@ -376,9 +376,9 @@ func TestTruncateText(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := truncateText(tt.input)
+			got := truncate(tt.input, maxTextLength)
 			if got != tt.want {
-				t.Errorf("truncateText(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("truncate(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
@@ -851,7 +851,7 @@ func TestCollectContainerText(t *testing.T) {
 			},
 			root: "li",
 			// "AAA...A | BBB...B" total > 160, truncated to 157 + "..."
-			want: truncateText(strings.Repeat("A", 100) + " | " + strings.Repeat("B", 100)),
+			want: truncate(strings.Repeat("A", 100)+" | "+strings.Repeat("B", 100), maxTextLength),
 		},
 		{
 			name: "skips buttons deep inside wrappers",

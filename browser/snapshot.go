@@ -17,6 +17,9 @@ const maxSnapshotDepth = 10
 // needs full text, it calls "webtool extract <backendNodeId>".
 const maxTextLength = 160
 
+// maxURLLength is the maximum rune length for link URLs in snapshots.
+const maxURLLength = 40
+
 // SnapshotMode controls the verbosity of the snapshot output.
 type SnapshotMode int
 
@@ -279,7 +282,7 @@ func walkTree(
 		if kind == kindInfo && name == "" {
 			return false
 		}
-		name = truncateText(name)
+		name = truncate(name, maxTextLength)
 		formatNode(buf, node, role, name, depth)
 		if kind == kindInteractive {
 			return true
@@ -342,9 +345,9 @@ func formatNode(buf *strings.Builder, node *proto.AccessibilityAXNode, role, nam
 		fmt.Fprintf(buf, " value=%q", val)
 	}
 
-	// URL for links (stripped of query params to save tokens).
+	// URL for links (stripped of query params and truncated to save tokens).
 	if linkURL := nodeProperty(node, "url"); linkURL != "" {
-		fmt.Fprintf(buf, " url=%q", stripQueryString(linkURL))
+		fmt.Fprintf(buf, " url=%q", truncate(stripQueryString(linkURL), maxURLLength))
 	}
 
 	// State flags
@@ -436,7 +439,7 @@ func collectContainerText(
 	collectContainerTextWalk(nodeID, nodeMap, childMap, &fragments)
 
 	joined := strings.Join(fragments, " | ")
-	return truncateText(joined)
+	return truncate(joined, maxTextLength)
 }
 
 // collectContainerTextWalk is the recursive helper for collectContainerText.
@@ -476,14 +479,15 @@ func collectContainerTextWalk(
 	}
 }
 
-// truncateText truncates s to maxTextLength runes, appending "..." if truncated.
-func truncateText(s string) string {
+// truncate truncates s to maxLen runes, appending "..." if truncated.
+func truncate(s string, maxLen int) string {
 	runes := []rune(s)
-	if len(runes) <= maxTextLength {
+	if len(runes) <= maxLen {
 		return s
 	}
-	return string(runes[:maxTextLength-3]) + "..."
+	return string(runes[:maxLen-3]) + "..."
 }
+
 
 // axStr extracts the string value from an AXValue, or "" if nil/empty.
 func axStr(v *proto.AccessibilityAXValue) string {
