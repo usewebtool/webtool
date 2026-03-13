@@ -41,6 +41,11 @@ func (b *Browser) Open(ctx context.Context, url string) error {
 		return err
 	}
 
+	// Bring the tab to the foreground so the user can see what the agent is doing.
+	if _, err := page.Context(ctx).Activate(); err != nil {
+		return fmt.Errorf("activating page: %w", err)
+	}
+
 	b.TargetID = string(page.TargetID)
 	return nil
 }
@@ -112,18 +117,32 @@ func (b *Browser) activePage() (*rod.Page, error) {
 		if err == nil {
 			return page, nil
 		}
-		// Stale target — fall through to first page.
+		// Stale target — fall through to finding a page.
 	}
 
 	pages, err := b.rod.Pages()
 	if err != nil {
 		return nil, fmt.Errorf("listing pages: %w", err)
 	}
+
+	// Pick the last user-visible page, skipping internal Chrome targets
+	// (omnibox popup, devtools, etc.). The last page is typically the
+	// most recently active tab.
+	for i := len(pages) - 1; i >= 0; i-- {
+		info, err := pages[i].Info()
+		if err != nil {
+			continue
+		}
+		if info.Type == proto.TargetTargetInfoTypePage && !strings.HasPrefix(info.URL, "chrome://") {
+			return pages[i], nil
+		}
+	}
+
+	// No user page found — fall back to the last page.
 	if len(pages) == 0 {
 		return nil, fmt.Errorf("no open pages found")
 	}
-
-	return pages[0], nil
+	return pages[len(pages)-1], nil
 }
 
 // pageTargets returns only "page" type targets, filtering out DevTools, extensions, etc.
