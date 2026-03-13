@@ -88,6 +88,7 @@ var structuralRoles = map[string]bool{
 	"listbox":       true,
 	"listitem":      true,
 	"table":         true,
+	"row":           true,
 	"tree":          true,
 	"tablist":       true,
 	"region":        true,
@@ -120,12 +121,12 @@ var interactiveRoles = map[string]bool{
 }
 
 // contentContainerRoles are structural containers that represent one repeated
-// content unit (inbox row, search result, product card). When unnamed, these
-// get a synthetic summary from descendant text.
-// Future candidates: row, cell, gridcell, columnheader, rowheader (deferred — table handling is separate).
+// content unit (inbox row, search result, product card, table row). When
+// unnamed, these get a synthetic summary from descendant text.
 var contentContainerRoles = map[string]bool{
 	"listitem": true,
 	"article":  true,
+	"row":      true,
 }
 
 // classify determines how a node should be rendered based on its AX role and
@@ -293,20 +294,40 @@ func (ps *PageSnapshot) walkTree(buf *strings.Builder, nodeID proto.Accessibilit
 		// line if children produced retainable content — otherwise the
 		// container is silently pruned from output.
 		var childBuf strings.Builder
-		hasInteractive := false
+		hasRetainable := false
 		for _, childID := range ps.childMap[nodeID] {
 			if ps.walkTree(&childBuf, childID, depth+1) {
-				hasInteractive = true
+				hasRetainable = true
 			}
 		}
-		if !hasInteractive {
-			return false
-		}
-		// For unnamed content containers (listitem, article), compute a
+
+		// For unnamed content containers (listitem, article, row), compute a
 		// synthetic summary from non-interactive descendant text.
 		if name == "" && contentContainerRoles[role] && ps.Mode != ModeInteractive {
 			name = collectContainerText(nodeID, ps.nodeMap, ps.childMap)
 		}
+
+		if !hasRetainable {
+			// Content containers can be retained by their summary alone:
+			// - In -a mode: all content containers with a non-empty summary
+			// - In default mode: only table header rows (rows with columnheader children)
+			retain := false
+			if contentContainerRoles[role] && name != "" {
+				if ps.Mode == ModeAll {
+					retain = true
+				} else if ps.Mode == ModeDefault && role == "row" && ps.isHeaderRow(nodeID) {
+					retain = true
+				}
+			}
+			if !retain {
+				return false
+			}
+			// Summary-only: emit the container line without children to
+			// avoid duplicating text that's already in the summary.
+			ps.formatNode(buf, node, role, name, depth)
+			return true
+		}
+
 		ps.formatNode(buf, node, role, name, depth)
 		buf.WriteString(childBuf.String())
 		return true
@@ -424,6 +445,20 @@ func (ps *PageSnapshot) formatNode(buf *strings.Builder, node *proto.Accessibili
 	buf.WriteByte('\n')
 }
 
+// isHeaderRow returns true if a row contains at least one columnheader child.
+func (ps *PageSnapshot) isHeaderRow(nodeID proto.AccessibilityAXNodeID) bool {
+	for _, childID := range ps.childMap[nodeID] {
+		child, ok := ps.nodeMap[childID]
+		if !ok {
+			continue
+		}
+		if axStr(child.Role) == "columnheader" {
+			return true
+		}
+	}
+	return false
+}
+
 // collectStaticText recursively collects text from StaticText descendants.
 // Used to resolve the display text for nodes like LabelText where Chrome puts
 // the visible text in StaticText children rather than the node's own name.
@@ -453,7 +488,7 @@ func collectStaticText(
 }
 
 // collectContainerText builds a synthetic summary for content containers
-// (listitem, article) by gathering non-interactive text from descendants.
+// (listitem, article, row) by gathering non-interactive text from descendants.
 //
 // This gives the LLM enough context to identify repeated content units (inbox
 // rows, search results, product cards) without showing every StaticText node.

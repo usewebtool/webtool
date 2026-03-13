@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -448,6 +449,16 @@ func TestClassify(t *testing.T) {
 		{"unnamed section", "section", false, ModeDefault, kindCollapse},
 		{"named section", "section", true, ModeDefault, kindStructural},
 
+		// Table row is structural.
+		{"row default", "row", false, ModeDefault, kindStructural},
+		{"row interactive", "row", false, ModeInteractive, kindStructural},
+		{"row all", "row", false, ModeAll, kindStructural},
+
+		// Table cell/header roles are not structural — they collapse.
+		{"cell", "cell", false, ModeDefault, kindCollapse},
+		{"columnheader", "columnheader", false, ModeDefault, kindCollapse},
+		{"rowheader", "rowheader", false, ModeDefault, kindCollapse},
+
 		// Unknown roles collapse.
 		{"generic", "generic", false, ModeDefault, kindCollapse},
 	}
@@ -664,6 +675,338 @@ func TestFormatSnapshotModes(t *testing.T) {
 			for _, want := range tt.contains {
 				if !strings.Contains(got, want) {
 					t.Errorf("output missing expected line %q\n\ngot:\n%s", want, got)
+				}
+			}
+			for _, reject := range tt.excludes {
+				if strings.Contains(got, reject) {
+					t.Errorf("output should not contain %q\n\ngot:\n%s", reject, got)
+				}
+			}
+		})
+	}
+}
+
+// Helper to build a simple table AX tree for tests.
+// Returns nodes for: root → table → header row + data rows.
+func buildTableNodes(withHeader bool, dataRows int, withButton bool) []*proto.AccessibilityAXNode {
+	var nodes []*proto.AccessibilityAXNode
+	var tableChildren []proto.AccessibilityAXNodeID
+
+	nextID := 100
+	id := func() (proto.AccessibilityAXNodeID, int) {
+		s := proto.AccessibilityAXNodeID(fmt.Sprintf("n%d", nextID))
+		bid := nextID
+		nextID++
+		return s, bid
+	}
+
+	rootID, _ := id()
+	tableID, tableBID := id()
+
+	nodes = append(nodes, &proto.AccessibilityAXNode{
+		NodeID:   rootID,
+		Role:     axVal("RootWebArea"),
+		ChildIDs: []proto.AccessibilityAXNodeID{tableID},
+	})
+
+	if withHeader {
+		headerRowID, headerRowBID := id()
+		tableChildren = append(tableChildren, headerRowID)
+		var headerCells []proto.AccessibilityAXNodeID
+		for _, colName := range []string{"#", "First", "Last"} {
+			cellID, cellBID := id()
+			textID, textBID := id()
+			headerCells = append(headerCells, cellID)
+			nodes = append(nodes,
+				&proto.AccessibilityAXNode{NodeID: cellID, ParentID: headerRowID, Role: axVal("columnheader"), BackendDOMNodeID: proto.DOMBackendNodeID(cellBID), ChildIDs: []proto.AccessibilityAXNodeID{textID}},
+				&proto.AccessibilityAXNode{NodeID: textID, ParentID: cellID, Role: axVal("StaticText"), Name: axVal(colName), BackendDOMNodeID: proto.DOMBackendNodeID(textBID)},
+			)
+		}
+		nodes = append(nodes, &proto.AccessibilityAXNode{
+			NodeID: headerRowID, ParentID: tableID, Role: axVal("row"),
+			BackendDOMNodeID: proto.DOMBackendNodeID(headerRowBID), ChildIDs: headerCells,
+		})
+	}
+
+	dataValues := [][]string{{"1", "Mark", "Otto"}, {"2", "Jacob", "Thornton"}}
+	for i := 0; i < dataRows && i < len(dataValues); i++ {
+		rowID, rowBID := id()
+		tableChildren = append(tableChildren, rowID)
+		var cellIDs []proto.AccessibilityAXNodeID
+		for _, val := range dataValues[i] {
+			cellID, cellBID := id()
+			textID, textBID := id()
+			cellIDs = append(cellIDs, cellID)
+			nodes = append(nodes,
+				&proto.AccessibilityAXNode{NodeID: cellID, ParentID: rowID, Role: axVal("cell"), BackendDOMNodeID: proto.DOMBackendNodeID(cellBID), ChildIDs: []proto.AccessibilityAXNodeID{textID}},
+				&proto.AccessibilityAXNode{NodeID: textID, ParentID: cellID, Role: axVal("StaticText"), Name: axVal(val), BackendDOMNodeID: proto.DOMBackendNodeID(textBID)},
+			)
+		}
+		if withButton {
+			btnID, btnBID := id()
+			cellIDs = append(cellIDs, btnID)
+			nodes = append(nodes, &proto.AccessibilityAXNode{
+				NodeID: btnID, ParentID: rowID, Role: axVal("button"),
+				Name: axVal("Delete"), BackendDOMNodeID: proto.DOMBackendNodeID(btnBID),
+			})
+		}
+		nodes = append(nodes, &proto.AccessibilityAXNode{
+			NodeID: rowID, ParentID: tableID, Role: axVal("row"),
+			BackendDOMNodeID: proto.DOMBackendNodeID(rowBID), ChildIDs: cellIDs,
+		})
+	}
+
+	nodes = append(nodes, &proto.AccessibilityAXNode{
+		NodeID: tableID, ParentID: rootID, Role: axVal("table"),
+		BackendDOMNodeID: proto.DOMBackendNodeID(tableBID), ChildIDs: tableChildren,
+	})
+
+	return nodes
+}
+
+func TestTableSnapshot(t *testing.T) {
+	tests := []struct {
+		name       string
+		mode       SnapshotMode
+		withHeader bool
+		dataRows   int
+		withButton bool // adds a Delete button to each data row
+		contains   []string
+		excludes   []string
+	}{
+		{
+			name:       "default mode shows header row only",
+			mode:       ModeDefault,
+			withHeader: true,
+			dataRows:   2,
+			contains: []string{
+				"table\n",
+				`row "First | Last"`,
+			},
+			excludes: []string{
+				"Mark", "Otto", "Jacob", "Thornton",
+			},
+		},
+		{
+			name:       "all mode shows header and data rows",
+			mode:       ModeAll,
+			withHeader: true,
+			dataRows:   2,
+			contains: []string{
+				"table\n",
+				`row "First | Last"`,
+				`row "Mark | Otto"`,
+				`row "Jacob | Thornton"`,
+			},
+		},
+		{
+			name:       "default mode no header table is pruned",
+			mode:       ModeDefault,
+			withHeader: false,
+			dataRows:   2,
+			excludes: []string{
+				"table", "row", "Mark",
+			},
+		},
+		{
+			name:       "all mode no header shows data rows",
+			mode:       ModeAll,
+			withHeader: false,
+			dataRows:   2,
+			contains: []string{
+				"table\n",
+				`row "Mark | Otto"`,
+				`row "Jacob | Thornton"`,
+			},
+		},
+		{
+			name:       "interactive mode shows only rows with interactive children",
+			mode:       ModeInteractive,
+			withHeader: true,
+			dataRows:   1,
+			withButton: true,
+			contains: []string{
+				"table\n",
+				"row\n", // data row with button (no summary in -i mode)
+				`"Delete"`,
+			},
+			excludes: []string{
+				"# | First | Last", // no summary in interactive mode
+				"Mark",             // no summary in interactive mode
+			},
+		},
+		{
+			name:       "default mode data rows with buttons shown with summary",
+			mode:       ModeDefault,
+			withHeader: true,
+			dataRows:   1,
+			withButton: true,
+			contains: []string{
+				`row "First | Last"`,
+				`row "Mark | Otto"`,
+				`button "Delete"`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nodes := buildTableNodes(tt.withHeader, tt.dataRows, tt.withButton)
+			ps, err := NewPageSnapshot("https://example.com", "Test", nodes, tt.mode)
+			if err != nil {
+				t.Fatalf("NewPageSnapshot error: %v", err)
+			}
+			got := ps.String()
+
+			for _, want := range tt.contains {
+				if !strings.Contains(got, want) {
+					t.Errorf("output missing expected content %q\n\ngot:\n%s", want, got)
+				}
+			}
+			for _, reject := range tt.excludes {
+				if strings.Contains(got, reject) {
+					t.Errorf("output should not contain %q\n\ngot:\n%s", reject, got)
+				}
+			}
+		})
+	}
+}
+
+func TestIsHeaderRow(t *testing.T) {
+	tests := []struct {
+		name  string
+		nodes []*proto.AccessibilityAXNode
+		rowID proto.AccessibilityAXNodeID
+		want  bool
+	}{
+		{
+			name: "row with columnheader children",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "row1", Role: axVal("row"), ChildIDs: []proto.AccessibilityAXNodeID{"ch1", "ch2"}},
+				{NodeID: "ch1", ParentID: "row1", Role: axVal("columnheader")},
+				{NodeID: "ch2", ParentID: "row1", Role: axVal("columnheader")},
+			},
+			rowID: "row1",
+			want:  true,
+		},
+		{
+			name: "row with cell children only",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "row1", Role: axVal("row"), ChildIDs: []proto.AccessibilityAXNodeID{"c1", "c2"}},
+				{NodeID: "c1", ParentID: "row1", Role: axVal("cell")},
+				{NodeID: "c2", ParentID: "row1", Role: axVal("cell")},
+			},
+			rowID: "row1",
+			want:  false,
+		},
+		{
+			name: "row with mixed columnheader and cell",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "row1", Role: axVal("row"), ChildIDs: []proto.AccessibilityAXNodeID{"ch1", "c1"}},
+				{NodeID: "ch1", ParentID: "row1", Role: axVal("columnheader")},
+				{NodeID: "c1", ParentID: "row1", Role: axVal("cell")},
+			},
+			rowID: "row1",
+			want:  true,
+		},
+		{
+			name: "row with no children",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "row1", Role: axVal("row")},
+			},
+			rowID: "row1",
+			want:  false,
+		},
+		{
+			name: "row with missing child nodes",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "row1", Role: axVal("row"), ChildIDs: []proto.AccessibilityAXNodeID{"missing"}},
+			},
+			rowID: "row1",
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ps, err := NewPageSnapshot("https://example.com", "Test", tt.nodes, ModeDefault)
+			if err != nil {
+				t.Fatalf("NewPageSnapshot error: %v", err)
+			}
+			got := ps.isHeaderRow(tt.rowID)
+			if got != tt.want {
+				t.Errorf("isHeaderRow(%q) = %v, want %v", tt.rowID, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestContentContainerRetainedBySummaryInAllMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		nodes    []*proto.AccessibilityAXNode
+		contains []string
+		excludes []string
+	}{
+		{
+			name: "data-only listitem retained in all mode",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"list1"}},
+				{NodeID: "list1", ParentID: "root", Role: axVal("list"), BackendDOMNodeID: 500, ChildIDs: []proto.AccessibilityAXNodeID{"li1"}},
+				{NodeID: "li1", ParentID: "list1", Role: axVal("listitem"), BackendDOMNodeID: 501, ChildIDs: []proto.AccessibilityAXNodeID{"t1", "t2"}},
+				{NodeID: "t1", ParentID: "li1", Role: axVal("StaticText"), Name: axVal("Item one"), BackendDOMNodeID: 502},
+				{NodeID: "t2", ParentID: "li1", Role: axVal("StaticText"), Name: axVal("$19.99"), BackendDOMNodeID: 503},
+			},
+			contains: []string{
+				"[500] list",
+				`[501] listitem "Item one | $19.99"`,
+			},
+		},
+		{
+			name: "data-only article retained in all mode",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"art1"}},
+				{NodeID: "art1", ParentID: "root", Role: axVal("article"), BackendDOMNodeID: 510, ChildIDs: []proto.AccessibilityAXNodeID{"t1"}},
+				{NodeID: "t1", ParentID: "art1", Role: axVal("StaticText"), Name: axVal("Article text"), BackendDOMNodeID: 511},
+			},
+			contains: []string{
+				`[510] article "Article text"`,
+			},
+		},
+		{
+			name: "data-only listitem still pruned in default mode",
+			nodes: []*proto.AccessibilityAXNode{
+				{NodeID: "root", Role: axVal("RootWebArea"), ChildIDs: []proto.AccessibilityAXNodeID{"list1", "btn1"}},
+				{NodeID: "list1", ParentID: "root", Role: axVal("list"), BackendDOMNodeID: 520, ChildIDs: []proto.AccessibilityAXNodeID{"li1"}},
+				{NodeID: "li1", ParentID: "list1", Role: axVal("listitem"), BackendDOMNodeID: 521, ChildIDs: []proto.AccessibilityAXNodeID{"t1"}},
+				{NodeID: "t1", ParentID: "li1", Role: axVal("StaticText"), Name: axVal("Just text"), BackendDOMNodeID: 522},
+				{NodeID: "btn1", ParentID: "root", Role: axVal("button"), Name: axVal("OK"), BackendDOMNodeID: 523},
+			},
+			excludes: []string{
+				"listitem", "[520]", "[521]", "Just text",
+			},
+			contains: []string{
+				`[523] button "OK"`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mode := ModeAll
+			// Check test name for "default mode" override.
+			if strings.Contains(tt.name, "default mode") {
+				mode = ModeDefault
+			}
+			ps, err := NewPageSnapshot("https://example.com", "Test", tt.nodes, mode)
+			if err != nil {
+				t.Fatalf("NewPageSnapshot error: %v", err)
+			}
+			got := ps.String()
+
+			for _, want := range tt.contains {
+				if !strings.Contains(got, want) {
+					t.Errorf("output missing expected content %q\n\ngot:\n%s", want, got)
 				}
 			}
 			for _, reject := range tt.excludes {
