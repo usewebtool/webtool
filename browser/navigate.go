@@ -115,8 +115,13 @@ func (b *Browser) activePage() (*rod.Page, error) {
 	if b.TargetID != "" {
 		page, err := b.rod.PageFromTarget(proto.TargetTargetID(b.TargetID))
 		if err == nil {
-			return page, nil
+			// Verify the session is still alive — PageFromTarget can return
+			// a zombie page whose CDP session was destroyed (e.g. tab closed).
+			if _, err := page.Info(); err == nil {
+				return page, nil
+			}
 		}
+		b.TargetID = ""
 		// Stale target — fall through to finding a page.
 	}
 
