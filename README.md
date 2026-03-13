@@ -49,3 +49,27 @@ See [docs/usage.md](docs/usage.md) for the full command reference.
 |----------|---------|-------------|
 | `WEBTOOL_HOME` | `~/.webtool` | Base directory for runtime files (socket, PID, logs) |
 | `WEBTOOL_CHROME_DATA_DIR` | OS default | Chrome user data directory for DevToolsActivePort discovery |
+
+## FAQ
+
+<details>
+<summary>Does webtool support headless mode?</summary>
+
+Webtool doesn't launch Chrome — it connects to your already-running instance. If you launch Chrome in headless mode yourself, webtool will connect to it just fine.
+
+What webtool intentionally avoids is *managing* a headless Chrome instance for you. Why? Because connecting to your real Chrome session is fundamentally better for agent workflows:
+
+- **No bot detection.** Automated Chrome instances (launched with `--remote-debugging-port` or via Playwright/Puppeteer) set `navigator.webdriver=true`, which triggers CAPTCHAs and blocks on most websites. Your normal Chrome session doesn't have this flag — webtool inherits that advantage by connecting to it rather than launching its own instance.
+- **Real logins.** Your Chrome already has your cookies, sessions, and saved passwords. No need to automate login flows or manage auth tokens.
+- **You can see what's happening.** When an agent controls your browser, you watch it work in real time. This builds trust and makes debugging trivial.
+
+If you need headless for CI or server environments, you can launch Chrome yourself with `chrome --headless --remote-debugging-port=0` and webtool will connect to it — but you'll be on your own for bot detection.
+
+</details>
+
+<details>
+<summary>How do I use webtool with a different Chrome profile?</summary>
+
+Switch profiles in Chrome's profile picker. Webtool connects to your Chrome process via a single shared connection, so it works with whichever profile is active — no configuration needed.
+
+</details>
