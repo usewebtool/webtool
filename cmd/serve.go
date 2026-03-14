@@ -3,8 +3,11 @@ package cmd
 import (
 	"github.com/machinae/webtool/agent"
 	"github.com/machinae/webtool/browser"
+	"github.com/machinae/webtool/policy"
 	"github.com/spf13/cobra"
 )
+
+var servePolicyFlag string
 
 var serveCmd = &cobra.Command{
 	Use:    "_serve",
@@ -17,10 +20,20 @@ var serveCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		b := browser.New().WithChromeDataDir(resolveDataDir())
+
+		if servePolicyFlag != "" {
+			p, err := policy.Load(servePolicyFlag)
+			if err != nil {
+				return err
+			}
+			b.WithPolicy(p)
+		}
+
 		return agent.NewServer(b).Start()
 	},
 }
 
 func init() {
+	serveCmd.Flags().StringVar(&servePolicyFlag, "policy", "", "path to security policy YAML file")
 	rootCmd.AddCommand(serveCmd)
 }

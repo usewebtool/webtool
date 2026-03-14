@@ -1,9 +1,14 @@
 package cmd
 
 import (
+	"path/filepath"
+
 	"github.com/machinae/webtool/agent"
+	"github.com/machinae/webtool/policy"
 	"github.com/spf13/cobra"
 )
+
+var startPolicyFlag string
 
 var startCmd = &cobra.Command{
 	Use:   "start",
@@ -15,10 +20,23 @@ var startCmd = &cobra.Command{
 		return nil // Skip root PersistentPreRunE — we are starting the daemon.
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return client.Start(cmd.Context())
+		var extraArgs []string
+		if startPolicyFlag != "" {
+			abs, err := filepath.Abs(startPolicyFlag)
+			if err != nil {
+				return err
+			}
+			// Validate early so the user sees errors immediately.
+			if _, err := policy.Load(abs); err != nil {
+				return err
+			}
+			extraArgs = append(extraArgs, "--policy", abs)
+		}
+		return client.Start(cmd.Context(), extraArgs...)
 	},
 }
 
 func init() {
+	startCmd.Flags().StringVar(&startPolicyFlag, "policy", "", "path to security policy YAML file")
 	rootCmd.AddCommand(startCmd)
 }
