@@ -97,3 +97,14 @@ type ErrNotEnabled struct {
 
 func (e *ErrNotEnabled) Error() string    { return fmt.Sprintf("element disabled: %s", e.Sel) }
 func (e *ErrNotEnabled) Selector() string { return e.Sel }
+
+// ErrBlocked indicates that a network request was blocked by the security policy.
+type ErrBlocked struct {
+	Method string
+	URL    string
+	Rule   string
+}
+
+func (e *ErrBlocked) Error() string {
+	return fmt.Sprintf("request blocked by policy: %s %s (rule: %s)", e.Method, e.URL, e.Rule)
+}

@@ -11,10 +11,6 @@ import (
 // not covered by dedicated commands (e.g. Input.insertText for canvas-based
 // apps like Google Docs).
 func (b *Browser) CDP(ctx context.Context, method string, params json.RawMessage) (json.RawMessage, error) {
-	if err := b.Connect(); err != nil {
-		return nil, err
-	}
-
 	tab, err := b.activeTab()
 	if err != nil {
 		return nil, err
@@ -35,5 +31,8 @@ func (b *Browser) CDP(ctx context.Context, method string, params json.RawMessage
 		return nil, fmt.Errorf("cdp %s: %w", method, err)
 	}
 
+	if err := tab.Err(); err != nil {
+		return nil, err
+	}
 	return res, nil
 }

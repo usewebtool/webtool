@@ -37,6 +37,11 @@ func (b *Browser) setupHijackRouter(t *tab) {
 			return
 		}
 		log.Printf("blocked by policy: %s %s (rule: %s)", h.Request.Method(), h.Request.URL(), rule)
+		t.sendErr(&ErrBlocked{
+			Method: h.Request.Method(),
+			URL:    h.Request.URL().String(),
+			Rule:   rule.String(),
+		})
 		h.Response.Fail(proto.NetworkErrorReasonBlockedByClient)
 	}
 
@@ -49,4 +54,3 @@ func (b *Browser) setupHijackRouter(t *tab) {
 	go router.Run()
 	t.hijackRouter = router
 }
-

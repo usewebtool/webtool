@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/go-rod/rod/lib/proto"
@@ -177,6 +178,7 @@ func (p *Policy) DenyPatterns() []string {
 	for u := range seen {
 		patterns = append(patterns, u)
 	}
+	sort.Strings(patterns)
 	return patterns
 }
 

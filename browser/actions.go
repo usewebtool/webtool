@@ -82,10 +82,6 @@ func waitPageLoad(ctx context.Context, page *rod.Page, action func() error) erro
 // before the click: WaitStable (animations settled), Disabled (not disabled),
 // and Interactable (visible, not obscured, pointer-events ok).
 func (b *Browser) Click(ctx context.Context, selector string) error {
-	if err := b.Connect(); err != nil {
-		return err
-	}
-
 	tab, err := b.activeTab()
 	if err != nil {
 		return err
@@ -129,7 +125,7 @@ func (b *Browser) Click(ctx context.Context, selector string) error {
 	}
 
 	waitPageSettle(ctx, page)
-	return nil
+	return tab.Err()
 }
 
 // Type finds an element by selector and types text into it. Uses Rod's
@@ -142,10 +138,6 @@ func (b *Browser) Click(ctx context.Context, selector string) error {
 // Existing text is selected first so the new text replaces it, matching
 // human behavior (select all → type overwrites).
 func (b *Browser) Type(ctx context.Context, selector string, text string) error {
-	if err := b.Connect(); err != nil {
-		return err
-	}
-
 	tab, err := b.activeTab()
 	if err != nil {
 		return err
@@ -188,17 +180,13 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 	}
 
 	waitPageSettle(ctx, page)
-	return nil
+	return tab.Err()
 }
 
 // Select finds a <select> element by selector and selects the option matching
 // the given visible text. Uses rod's built-in Element.Select which handles
 // scrolling into view, waiting for visibility, and dispatching change events.
 func (b *Browser) Select(ctx context.Context, selector string, value string) error {
-	if err := b.Connect(); err != nil {
-		return err
-	}
-
 	tab, err := b.activeTab()
 	if err != nil {
 		return err
@@ -221,17 +209,13 @@ func (b *Browser) Select(ctx context.Context, selector string, value string) err
 	}
 
 	waitPageSettle(ctx, page)
-	return nil
+	return tab.Err()
 }
 
 // Eval executes a JavaScript expression in the page and returns the result.
 // Uses CDP Runtime.evaluate directly (like the Chrome console) so any
 // expression works, not just function bodies.
 func (b *Browser) Eval(ctx context.Context, js string) (string, error) {
-	if err := b.Connect(); err != nil {
-		return "", err
-	}
-
 	tab, err := b.activeTab()
 	if err != nil {
 		return "", err
@@ -248,6 +232,9 @@ func (b *Browser) Eval(ctx context.Context, js string) (string, error) {
 		return "", fmt.Errorf("evaluating JS: %w", err)
 	}
 
+	if err := tab.Err(); err != nil {
+		return "", err
+	}
 	return result.Value.String(), nil
 }
 
@@ -255,10 +242,6 @@ func (b *Browser) Eval(ctx context.Context, js string) (string, error) {
 // Uses waitPageSettle instead of waitPageLoad because SPA routers handle
 // back navigation via popstate events without a full page load.
 func (b *Browser) Back(ctx context.Context) error {
-	if err := b.Connect(); err != nil {
-		return err
-	}
-
 	tab, err := b.activeTab()
 	if err != nil {
 		return err
@@ -270,17 +253,13 @@ func (b *Browser) Back(ctx context.Context) error {
 	}
 
 	waitPageSettle(ctx, page)
-	return nil
+	return tab.Err()
 }
 
 // Forward navigates forward in browser history and waits for the DOM to settle.
 // Uses waitPageSettle instead of waitPageLoad because SPA routers handle
 // forward navigation via popstate events without a full page load.
 func (b *Browser) Forward(ctx context.Context) error {
-	if err := b.Connect(); err != nil {
-		return err
-	}
-
 	tab, err := b.activeTab()
 	if err != nil {
 		return err
@@ -292,7 +271,7 @@ func (b *Browser) Forward(ctx context.Context) error {
 	}
 
 	waitPageSettle(ctx, page)
-	return nil
+	return tab.Err()
 }
 
 // translateInteractableErr converts Rod's interactability errors into our typed
@@ -339,10 +318,6 @@ func blockerNodeID(el *rod.Element) string {
 // "ArrowDown", "Escape"). This dispatches real keyDown/keyUp CDP events,
 // unlike Type which uses insertText.
 func (b *Browser) Key(ctx context.Context, name string) error {
-	if err := b.Connect(); err != nil {
-		return err
-	}
-
 	key, ok := keyMap[strings.ToLower(name)]
 	if !ok {
 		return fmt.Errorf("unknown key %q", name)
@@ -359,5 +334,5 @@ func (b *Browser) Key(ctx context.Context, name string) error {
 	}
 
 	waitPageSettle(ctx, page)
-	return nil
+	return tab.Err()
 }

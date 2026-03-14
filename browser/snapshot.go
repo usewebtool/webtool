@@ -37,10 +37,6 @@ const (
 // Snapshot returns a token-efficient text representation of the current page's
 // interactive elements, structured by accessibility landmarks and forms.
 func (b *Browser) Snapshot(ctx context.Context, mode SnapshotMode) (*PageSnapshot, error) {
-	if err := b.Connect(); err != nil {
-		return nil, err
-	}
-
 	tab, err := b.activeTab()
 	if err != nil {
 		return nil, err

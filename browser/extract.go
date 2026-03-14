@@ -11,10 +11,6 @@ import (
 // An empty selector extracts the full page body. If asHTML is true, raw HTML is
 // returned; otherwise the HTML is converted to markdown.
 func (b *Browser) Extract(ctx context.Context, selector string, asHTML bool) (string, error) {
-	if err := b.Connect(); err != nil {
-		return "", err
-	}
-
 	tab, err := b.activeTab()
 	if err != nil {
 		return "", err
