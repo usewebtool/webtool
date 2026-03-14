@@ -253,6 +253,15 @@ func (c *Client) Switch(ctx context.Context, index int) error {
 	return resp.Err()
 }
 
+// Hover moves the mouse over an element without clicking.
+func (c *Client) Hover(ctx context.Context, selector string) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/hover", HoverRequest{Selector: selector}, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
 // Upload sets one or more files on a file input element.
 func (c *Client) Upload(ctx context.Context, selector string, files []string) error {
 	var resp Response

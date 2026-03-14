@@ -85,6 +85,11 @@ type UploadRequest struct {
 	Files    []string `json:"files"`
 }
 
+// HoverRequest is the request body for the /hover endpoint.
+type HoverRequest struct {
+	Selector string `json:"selector"`
+}
+
 // SwitchRequest is the request body for the /switch endpoint.
 type SwitchRequest struct {
 	Index int `json:"index"`

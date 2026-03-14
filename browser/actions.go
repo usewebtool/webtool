@@ -314,6 +314,29 @@ func (b *Browser) Upload(ctx context.Context, selector string, files []string) e
 	return nil
 }
 
+// Hover moves the mouse over an element without clicking. Triggers CSS :hover
+// states and JS mouseenter/mouseover events. Rod's Hover handles scroll-into-view
+// and wait-for-interactable internally.
+func (b *Browser) Hover(ctx context.Context, selector string) error {
+	tab, err := b.activeTab()
+	if err != nil {
+		return err
+	}
+	page := tab.page
+
+	el, err := resolveElement(ctx, page, selector)
+	if err != nil {
+		return err
+	}
+
+	if err := el.Context(ctx).Hover(); err != nil {
+		return fmt.Errorf("hovering element: %w", err)
+	}
+
+	waitPageSettle(ctx, page)
+	return nil
+}
+
 // translateInteractableErr converts Rod's interactability errors into our typed
 // errors with backendNodeId context for the agent. Falls back to a generic
 // fmt.Errorf if the error is not a recognized Rod interactability type.
