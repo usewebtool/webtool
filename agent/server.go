@@ -78,6 +78,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /key", s.handleKey)
 	mux.HandleFunc("POST /back", s.handleBack)
 	mux.HandleFunc("POST /forward", s.handleForward)
+	mux.HandleFunc("POST /reload", s.handleReload)
 
 	mux.HandleFunc("POST /eval", s.handleEval)
 	mux.HandleFunc("POST /select", s.handleSelect)
@@ -328,6 +329,17 @@ func (s *Server) handleForward(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 
 	if err := s.checkErr(s.browser.Forward(r.Context())); err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, Response{})
+}
+
+func (s *Server) handleReload(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.checkErr(s.browser.Reload(r.Context())); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}

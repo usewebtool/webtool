@@ -271,6 +271,24 @@ func (b *Browser) Forward(ctx context.Context) error {
 	return nil
 }
 
+// Reload reloads the current page and waits for the DOM to settle.
+// Uses waitPageSettle instead of waitPageLoad because cached pages and
+// service workers may not fire the full navigation lifecycle events.
+func (b *Browser) Reload(ctx context.Context) error {
+	tab, err := b.activeTab()
+	if err != nil {
+		return err
+	}
+	page := tab.page
+
+	if err := page.Context(ctx).Reload(); err != nil {
+		return fmt.Errorf("reloading page: %w", err)
+	}
+
+	waitPageSettle(ctx, page)
+	return nil
+}
+
 // translateInteractableErr converts Rod's interactability errors into our typed
 // errors with backendNodeId context for the agent. Falls back to a generic
 // fmt.Errorf if the error is not a recognized Rod interactability type.

@@ -214,6 +214,15 @@ func (c *Client) Forward(ctx context.Context) error {
 	return resp.Err()
 }
 
+// Reload reloads the current page.
+func (c *Client) Reload(ctx context.Context) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/reload", nil, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
 // Eval executes JavaScript in the page and returns the result.
 func (c *Client) Eval(ctx context.Context, js string) (string, error) {
 	var resp EvalResponse
