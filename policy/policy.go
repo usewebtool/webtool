@@ -49,6 +49,7 @@ func (r Rule) String() string {
 func Load(path string) (*Policy, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
+	v.SetConfigType("yaml")
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("reading policy file: %w", err)
 	}
