@@ -46,16 +46,27 @@ func NewClientWithDataDir(chromeDataDir string) *Client {
 	}
 }
 
-// EnsureRunning starts the daemon if it is not already running.
-// Returns nil if the daemon is healthy (either already running or just started).
-func (c *Client) EnsureRunning(ctx context.Context) error {
+// RequireRunning checks if the daemon is running and returns a clear error if not.
+func (c *Client) RequireRunning(ctx context.Context) error {
+	if err := c.Health(ctx); err == nil {
+		return nil
+	} else if isNetError(err) {
+		return fmt.Errorf("daemon not running — start it with: webtool start")
+	} else {
+		return err
+	}
+}
+
+// Start starts the daemon if it is not already running and waits until it is healthy.
+// Idempotent — if the daemon is already running, returns nil immediately.
+func (c *Client) Start(ctx context.Context, args ...string) error {
 	if err := c.Health(ctx); err == nil {
 		return nil
 	} else if !isNetError(err) {
 		return err
 	}
 
-	if err := c.spawn(); err != nil {
+	if err := c.spawn(args...); err != nil {
 		return fmt.Errorf("starting daemon: %w", err)
 	}
 
@@ -83,7 +94,8 @@ func isNetError(err error) bool {
 }
 
 // spawn starts the daemon as a detached background process.
-func (c *Client) spawn() error {
+// Extra args are appended to the _serve command (e.g. "--policy", "path").
+func (c *Client) spawn(args ...string) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -100,7 +112,8 @@ func (c *Client) spawn() error {
 		return err
 	}
 
-	cmd := exec.Command(exe, "_serve")
+	cmdArgs := append([]string{"_serve"}, args...)
+	cmd := exec.Command(exe, cmdArgs...)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.SysProcAttr = sysProcAttr()

@@ -25,7 +25,7 @@ var rootCmd = &cobra.Command{
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		agent.HomeDir = resolveHome()
 		client = agent.NewClientWithDataDir(resolveDataDir())
-		return client.EnsureRunning(cmd.Context())
+		return client.RequireRunning(cmd.Context())
 	},
 }
 
