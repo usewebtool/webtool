@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -183,6 +184,7 @@ func (p *Policy) DenyPatterns() []string {
 }
 
 // readBody reads the request body and returns it as a string.
+// The body is reset so the request can still be forwarded.
 // Returns empty string if the body is nil.
 func readBody(r *http.Request) (string, error) {
 	if r.Body == nil {
@@ -192,5 +194,6 @@ func readBody(r *http.Request) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("reading request body: %w", err)
 	}
+	r.Body = io.NopCloser(bytes.NewReader(data))
 	return string(data), nil
 }
