@@ -171,9 +171,9 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 		return translateInteractableErr(err, selector)
 	}
 
-	if err := el.SelectAllText(); err != nil {
-		return fmt.Errorf("selecting existing text: %w", err)
-	}
+	// Select existing text so new text replaces it.
+	// Fails silently on contenteditable elements (no .select() method).
+	_ = el.SelectAllText()
 
 	if err := el.Input(text); err != nil {
 		return fmt.Errorf("typing text: %w", err)
