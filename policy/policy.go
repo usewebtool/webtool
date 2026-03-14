@@ -162,6 +162,23 @@ func (p *Policy) matchRules(rules []Rule, r *http.Request, body string) (bool, *
 	return false, nil
 }
 
+// DenyPatterns returns deduplicated URL patterns from deny rules for CDP registration.
+// If any deny rule has no URL pattern, returns ["*"] (catch-all).
+func (p *Policy) DenyPatterns() []string {
+	seen := make(map[string]bool)
+	for _, r := range p.DenyList {
+		if r.URL == "" {
+			return []string{"*"}
+		}
+		seen[r.URL] = true
+	}
+	patterns := make([]string, 0, len(seen))
+	for u := range seen {
+		patterns = append(patterns, u)
+	}
+	return patterns
+}
+
 // readBody reads the request body and returns it as a string.
 // Returns empty string if the body is nil.
 func readBody(r *http.Request) (string, error) {

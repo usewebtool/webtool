@@ -24,8 +24,9 @@ type TabInfo struct {
 // tab is a live browser tab the agent is controlling.
 // Tracked in Browser.tabs. Holds the rod page and per-tab state.
 type tab struct {
-	targetID string
-	page     *rod.Page
+	targetID     string
+	page         *rod.Page
+	hijackRouter *rod.HijackRouter
 }
 
 // Open navigates the active page to the given URL.
@@ -110,13 +111,7 @@ func (b *Browser) Switch(ctx context.Context, index int) error {
 		return fmt.Errorf("activating tab: %w", err)
 	}
 
-	targetID := string(page.TargetID)
-	t, ok := b.tabs[targetID]
-	if !ok {
-		t = &tab{targetID: targetID, page: page}
-		b.tabs[targetID] = t
-	}
-	b.active = t
+	b.getOrCreateTab(page)
 	return nil
 }
 
@@ -132,6 +127,7 @@ func (b *Browser) activeTab() (*tab, error) {
 		// Verify the session is still alive — the page may be a zombie
 		// whose CDP session was destroyed (e.g. tab closed).
 		if _, err := b.active.page.Info(); err == nil {
+			b.ensureHijacked(b.active)
 			return b.active, nil
 		}
 		// Stale tab — remove from map and fall through.
@@ -173,6 +169,7 @@ func (b *Browser) getOrCreateTab(page *rod.Page) *tab {
 		b.tabs[targetID] = t
 	}
 	b.active = t
+	b.ensureHijacked(t)
 	return t
 }
 

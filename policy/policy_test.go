@@ -228,6 +228,33 @@ func TestIsAllowed_MultipleRulesOR(t *testing.T) {
 	}
 }
 
+func TestDenyPatterns_Deduplicates(t *testing.T) {
+	p := &Policy{
+		DenyList: []Rule{
+			{URL: "*api.example.com/sync*", Body: "action1"},
+			{URL: "*api.example.com/sync*", Body: "action2"},
+			{URL: "*api.example.com/delete*"},
+		},
+	}
+	patterns := p.DenyPatterns()
+	if len(patterns) != 2 {
+		t.Fatalf("expected 2 patterns, got %d: %v", len(patterns), patterns)
+	}
+}
+
+func TestDenyPatterns_CatchAllWhenNoURL(t *testing.T) {
+	p := &Policy{
+		DenyList: []Rule{
+			{URL: "*api.example.com*"},
+			{Method: "DELETE"}, // no URL
+		},
+	}
+	patterns := p.DenyPatterns()
+	if len(patterns) != 1 || patterns[0] != "*" {
+		t.Fatalf("expected [*], got %v", patterns)
+	}
+}
+
 func TestLoad_ValidPolicy(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "policy.yml")
