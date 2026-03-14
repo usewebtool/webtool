@@ -25,6 +25,10 @@ func (b *Browser) Open(ctx context.Context, url string) error {
 		}
 		return nil
 	}); err != nil {
+		// Navigation failed — check if it was blocked by policy.
+		if errTab := tab.Err(); errTab != nil {
+			return errTab
+		}
 		return err
 	}
 

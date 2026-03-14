@@ -249,6 +249,9 @@ func (b *Browser) Back(ctx context.Context) error {
 	page := tab.page
 
 	if err := page.Context(ctx).NavigateBack(); err != nil {
+		if errTab := tab.Err(); errTab != nil {
+			return errTab
+		}
 		return fmt.Errorf("navigating back: %w", err)
 	}
 
@@ -267,6 +270,9 @@ func (b *Browser) Forward(ctx context.Context) error {
 	page := tab.page
 
 	if err := page.Context(ctx).NavigateForward(); err != nil {
+		if errTab := tab.Err(); errTab != nil {
+			return errTab
+		}
 		return fmt.Errorf("navigating forward: %w", err)
 	}
 
