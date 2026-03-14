@@ -56,12 +56,16 @@ func (b *Browser) Tabs(ctx context.Context) ([]TabInfo, error) {
 		if !isUserTab(info) {
 			continue
 		}
-		tabs = append(tabs, TabInfo{
+		t := TabInfo{
 			Index:    len(tabs) + 1,
 			Title:    info.Title,
 			URL:      info.URL,
 			TargetID: string(info.TargetID),
-		})
+		}
+		if b.active != nil && b.active.targetID == t.TargetID {
+			t.Active = true
+		}
+		tabs = append(tabs, t)
 	}
 
 	return tabs, nil

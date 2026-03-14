@@ -18,6 +18,8 @@ type TabInfo struct {
 	URL string `json:"url"`
 	// TargetID is the CDP target ID for reference.
 	TargetID string `json:"targetID"`
+	// Active is true if this is the tab webtool will act on.
+	Active bool `json:"active"`
 }
 
 // tab is a live browser tab the agent is controlling.

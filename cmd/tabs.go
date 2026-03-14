@@ -16,7 +16,11 @@ var tabsCmd = &cobra.Command{
 			return err
 		}
 		for _, t := range tabs {
-			fmt.Printf("%d %s %s\n", t.Index, t.Title, t.URL)
+			if t.Active {
+				fmt.Printf("%d %s %s [active]\n", t.Index, t.Title, t.URL)
+			} else {
+				fmt.Printf("%d %s %s\n", t.Index, t.Title, t.URL)
+			}
 		}
 		return nil
 	},
