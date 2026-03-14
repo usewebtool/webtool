@@ -37,6 +37,6 @@ var startCmd = &cobra.Command{
 }
 
 func init() {
-	startCmd.Flags().StringVar(&startPolicyFlag, "policy", "", "path to security policy YAML file")
+	startCmd.Flags().StringVarP(&startPolicyFlag, "policy", "p", "", "path to security policy YAML file")
 	rootCmd.AddCommand(startCmd)
 }
