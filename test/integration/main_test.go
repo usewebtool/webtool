@@ -26,8 +26,8 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Ensure daemon is running before tests.
-	if out, code := webtool("open", "about:blank"); code != 0 {
+	// Start the daemon. Idempotent — succeeds if already running.
+	if out, code := webtool("start"); code != 0 {
 		fmt.Fprintf(os.Stderr, "failed to start daemon (exit %d): %s\n", code, out)
 		os.Exit(1)
 	}
