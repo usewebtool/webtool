@@ -41,11 +41,11 @@ func (b *Browser) Snapshot(ctx context.Context, mode SnapshotMode) (*PageSnapsho
 		return nil, err
 	}
 
-	page, err := b.activePage()
+	tab, err := b.activeTab()
 	if err != nil {
 		return nil, err
 	}
-	page = page.Context(ctx)
+	page := tab.page.Context(ctx)
 
 	info, err := page.Info()
 	if err != nil {

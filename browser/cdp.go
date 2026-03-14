@@ -15,10 +15,11 @@ func (b *Browser) CDP(ctx context.Context, method string, params json.RawMessage
 		return nil, err
 	}
 
-	page, err := b.activePage()
+	tab, err := b.activeTab()
 	if err != nil {
 		return nil, err
 	}
+	page := tab.page
 
 	// Unmarshal params into a generic map for rod's Call interface.
 	// An empty/nil params is valid (some CDP methods take no arguments).

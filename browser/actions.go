@@ -86,10 +86,11 @@ func (b *Browser) Click(ctx context.Context, selector string) error {
 		return err
 	}
 
-	page, err := b.activePage()
+	tab, err := b.activeTab()
 	if err != nil {
 		return err
 	}
+	page := tab.page
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
@@ -145,10 +146,11 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 		return err
 	}
 
-	page, err := b.activePage()
+	tab, err := b.activeTab()
 	if err != nil {
 		return err
 	}
+	page := tab.page
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
@@ -197,10 +199,11 @@ func (b *Browser) Select(ctx context.Context, selector string, value string) err
 		return err
 	}
 
-	page, err := b.activePage()
+	tab, err := b.activeTab()
 	if err != nil {
 		return err
 	}
+	page := tab.page
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
@@ -229,10 +232,11 @@ func (b *Browser) Eval(ctx context.Context, js string) (string, error) {
 		return "", err
 	}
 
-	page, err := b.activePage()
+	tab, err := b.activeTab()
 	if err != nil {
 		return "", err
 	}
+	page := tab.page
 
 	// Rod expects a function definition — it calls .apply() on the expression.
 	// Wrap in an async arrow function so arbitrary expressions work and
@@ -255,10 +259,11 @@ func (b *Browser) Back(ctx context.Context) error {
 		return err
 	}
 
-	page, err := b.activePage()
+	tab, err := b.activeTab()
 	if err != nil {
 		return err
 	}
+	page := tab.page
 
 	if err := page.Context(ctx).NavigateBack(); err != nil {
 		return fmt.Errorf("navigating back: %w", err)
@@ -276,10 +281,11 @@ func (b *Browser) Forward(ctx context.Context) error {
 		return err
 	}
 
-	page, err := b.activePage()
+	tab, err := b.activeTab()
 	if err != nil {
 		return err
 	}
+	page := tab.page
 
 	if err := page.Context(ctx).NavigateForward(); err != nil {
 		return fmt.Errorf("navigating forward: %w", err)
@@ -342,10 +348,11 @@ func (b *Browser) Key(ctx context.Context, name string) error {
 		return fmt.Errorf("unknown key %q", name)
 	}
 
-	page, err := b.activePage()
+	tab, err := b.activeTab()
 	if err != nil {
 		return err
 	}
+	page := tab.page
 
 	if err := page.Context(ctx).Keyboard.Press(key); err != nil {
 		return fmt.Errorf("pressing key %q: %w", name, err)

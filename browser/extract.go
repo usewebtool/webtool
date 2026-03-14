@@ -15,10 +15,11 @@ func (b *Browser) Extract(ctx context.Context, selector string, asHTML bool) (st
 		return "", err
 	}
 
-	page, err := b.activePage()
+	tab, err := b.activeTab()
 	if err != nil {
 		return "", err
 	}
+	page := tab.page
 
 	var html string
 	if selector == "" {

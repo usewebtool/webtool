@@ -146,7 +146,7 @@ func (c *Client) Open(ctx context.Context, url string) error {
 }
 
 // Tabs returns all open browser tabs.
-func (c *Client) Tabs(ctx context.Context) ([]browser.Tab, error) {
+func (c *Client) Tabs(ctx context.Context) ([]browser.TabInfo, error) {
 	var resp TabsResponse
 	if err := c.do(ctx, "GET", "/tabs", nil, &resp); err != nil {
 		return nil, err

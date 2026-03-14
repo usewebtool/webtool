@@ -11,13 +11,17 @@ type Browser struct {
 	WSUrl string
 	// ChromeDataDir is the Chrome user data directory used for DevToolsActivePort discovery.
 	ChromeDataDir string
-	// TargetID is the CDP target ID of the active page.
-	TargetID string
+	// active is the current agent-controlled tab.
+	active *tab
+	// tabs tracks all agent-touched tabs by target ID.
+	tabs map[string]*tab
 }
 
 // New creates a new Browser with default settings.
 func New() *Browser {
-	return &Browser{}
+	return &Browser{
+		tabs: make(map[string]*tab),
+	}
 }
 
 // WithChromeDataDir sets the Chrome user data directory for DevToolsActivePort discovery.

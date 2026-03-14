@@ -9,14 +9,23 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
-// Tab represents an open browser tab.
-type Tab struct {
+// TabInfo is a display-only snapshot of a browser tab, returned by Tabs().
+type TabInfo struct {
 	// Index is the 1-based position in the tab list.
 	Index int `json:"index"`
 	// Title is the page title.
 	Title string `json:"title"`
 	// URL is the page URL.
 	URL string `json:"url"`
+	// TargetID is the CDP target ID for reference.
+	TargetID string `json:"targetID"`
+}
+
+// tab is a live browser tab the agent is controlling.
+// Tracked in Browser.tabs. Holds the rod page and per-tab state.
+type tab struct {
+	targetID string
+	page     *rod.Page
 }
 
 // Open navigates the active page to the given URL.
@@ -27,10 +36,11 @@ func (b *Browser) Open(ctx context.Context, url string) error {
 		return err
 	}
 
-	page, err := b.activePage()
+	tab, err := b.activeTab()
 	if err != nil {
 		return err
 	}
+	page := tab.page
 
 	if err := waitPageLoad(ctx, page, func() error {
 		if err := page.Context(ctx).Navigate(url); err != nil {
@@ -46,12 +56,11 @@ func (b *Browser) Open(ctx context.Context, url string) error {
 		return fmt.Errorf("activating page: %w", err)
 	}
 
-	b.TargetID = string(page.TargetID)
 	return nil
 }
 
 // Tabs returns all open browser tabs, filtering out DevTools and other non-page targets.
-func (b *Browser) Tabs(ctx context.Context) ([]Tab, error) {
+func (b *Browser) Tabs(ctx context.Context) ([]TabInfo, error) {
 	if err := b.Connect(); err != nil {
 		return nil, err
 	}
@@ -61,7 +70,7 @@ func (b *Browser) Tabs(ctx context.Context) ([]Tab, error) {
 		return nil, fmt.Errorf("listing pages: %w", err)
 	}
 
-	tabs := make([]Tab, 0, len(all))
+	tabs := make([]TabInfo, 0, len(all))
 	for _, p := range all {
 		info, err := p.Context(ctx).Info()
 		if err != nil {
@@ -70,10 +79,11 @@ func (b *Browser) Tabs(ctx context.Context) ([]Tab, error) {
 		if !isUserTab(info) {
 			continue
 		}
-		tabs = append(tabs, Tab{
-			Index: len(tabs) + 1,
-			Title: info.Title,
-			URL:   info.URL,
+		tabs = append(tabs, TabInfo{
+			Index:    len(tabs) + 1,
+			Title:    info.Title,
+			URL:      info.URL,
+			TargetID: string(info.TargetID),
 		})
 	}
 
@@ -100,29 +110,33 @@ func (b *Browser) Switch(ctx context.Context, index int) error {
 		return fmt.Errorf("activating tab: %w", err)
 	}
 
-	b.TargetID = string(page.TargetID)
+	targetID := string(page.TargetID)
+	t, ok := b.tabs[targetID]
+	if !ok {
+		t = &tab{targetID: targetID, page: page}
+		b.tabs[targetID] = t
+	}
+	b.active = t
 	return nil
 }
 
-// activePage returns the page for the saved TargetID, or the first available page.
+// activeTab returns the current active tab, or finds a suitable one.
 // This method intentionally does NOT accept a context.Context parameter.
 // Rod's .Context(ctx) returns a shallow copy, but Page objects returned by
 // the clone inherit the request-scoped context. When the request ends, those
 // pages carry a cancelled context, breaking subsequent operations. Callers
-// should apply context to the returned page directly: page.Context(ctx).
+// should apply context to the returned page directly: tab.page.Context(ctx).
 // See commit 408af4f.
-func (b *Browser) activePage() (*rod.Page, error) {
-	if b.TargetID != "" {
-		page, err := b.rod.PageFromTarget(proto.TargetTargetID(b.TargetID))
-		if err == nil {
-			// Verify the session is still alive — PageFromTarget can return
-			// a zombie page whose CDP session was destroyed (e.g. tab closed).
-			if _, err := page.Info(); err == nil {
-				return page, nil
-			}
+func (b *Browser) activeTab() (*tab, error) {
+	if b.active != nil {
+		// Verify the session is still alive — the page may be a zombie
+		// whose CDP session was destroyed (e.g. tab closed).
+		if _, err := b.active.page.Info(); err == nil {
+			return b.active, nil
 		}
-		b.TargetID = ""
-		// Stale target — fall through to finding a page.
+		// Stale tab — remove from map and fall through.
+		delete(b.tabs, b.active.targetID)
+		b.active = nil
 	}
 
 	pages, err := b.rod.Pages()
@@ -139,7 +153,7 @@ func (b *Browser) activePage() (*rod.Page, error) {
 			continue
 		}
 		if info.Type == proto.TargetTargetInfoTypePage && !strings.HasPrefix(info.URL, "chrome://") {
-			return pages[i], nil
+			return b.getOrCreateTab(pages[i]), nil
 		}
 	}
 
@@ -147,7 +161,19 @@ func (b *Browser) activePage() (*rod.Page, error) {
 	if len(pages) == 0 {
 		return nil, fmt.Errorf("no open pages found")
 	}
-	return pages[len(pages)-1], nil
+	return b.getOrCreateTab(pages[len(pages)-1]), nil
+}
+
+// getOrCreateTab looks up or creates a tab for the given rod page and sets it as active.
+func (b *Browser) getOrCreateTab(page *rod.Page) *tab {
+	targetID := string(page.TargetID)
+	t, ok := b.tabs[targetID]
+	if !ok {
+		t = &tab{targetID: targetID, page: page}
+		b.tabs[targetID] = t
+	}
+	b.active = t
+	return t
 }
 
 // pageTargets returns only "page" type targets, filtering out DevTools, extensions, etc.

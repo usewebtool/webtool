@@ -31,7 +31,7 @@ type OpenRequest struct {
 // TabsResponse is the response for the /tabs endpoint.
 type TabsResponse struct {
 	Response
-	Tabs []browser.Tab `json:"tabs,omitempty"`
+	Tabs []browser.TabInfo `json:"tabs,omitempty"`
 }
 
 // ClickRequest is the request body for the /click endpoint.

@@ -27,7 +27,7 @@ func TestResponseErrNonEmpty(t *testing.T) {
 
 func TestTabsResponseJSON(t *testing.T) {
 	resp := TabsResponse{
-		Tabs: []browser.Tab{
+		Tabs: []browser.TabInfo{
 			{Index: 1, Title: "Example", URL: "https://example.com"},
 		},
 	}
