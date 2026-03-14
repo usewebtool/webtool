@@ -369,6 +369,70 @@ func TestCompileRules_URLPattern(t *testing.T) {
 	}
 }
 
+func TestIsAllowed_AllowExceptionByBody(t *testing.T) {
+	p := &Policy{
+		DenyList: []Rule{
+			{Method: "POST", URL: "*api.example.com/sync*", Body: "delete|archive"},
+		},
+		AllowList: []Rule{
+			{Method: "POST", URL: "*api.example.com/sync*", Body: "read"},
+		},
+	}
+	if err := compileRules(p.DenyList); err != nil {
+		t.Fatal(err)
+	}
+	if err := compileRules(p.AllowList); err != nil {
+		t.Fatal(err)
+	}
+
+	// Body matches deny but also matches allow exception — allowed.
+	req, _ := http.NewRequest("POST", "https://api.example.com/sync/data", strings.NewReader("read delete"))
+	allowed, rule, err := p.IsAllowed(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowed {
+		t.Fatal("expected allowed (allow exception by body)")
+	}
+	if rule == nil || rule.Body != "read" {
+		t.Fatalf("expected allow rule with body=read, got %v", rule)
+	}
+
+	// Body matches deny only — denied.
+	req, _ = http.NewRequest("POST", "https://api.example.com/sync/data", strings.NewReader("archive stuff"))
+	allowed, rule, err = p.IsAllowed(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allowed {
+		t.Fatal("expected denied (no allow exception)")
+	}
+	if rule == nil || rule.Body != "delete|archive" {
+		t.Fatalf("expected deny rule with body=delete|archive, got %v", rule)
+	}
+}
+
+func TestIsAllowed_NilBodyWithBodyRules(t *testing.T) {
+	p := &Policy{
+		DenyList: []Rule{
+			{URL: "*api.example.com*", Body: "dangerous"},
+		},
+	}
+	if err := compileRules(p.DenyList); err != nil {
+		t.Fatal(err)
+	}
+
+	// Nil body — body regex won't match, so request is allowed.
+	req, _ := http.NewRequest("GET", "https://api.example.com/data", nil)
+	allowed, _, err := p.IsAllowed(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowed {
+		t.Fatal("expected allowed when body is nil and body regex can't match")
+	}
+}
+
 func TestLoad_NoDenyRules(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "empty.yml")
