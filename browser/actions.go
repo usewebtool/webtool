@@ -125,7 +125,7 @@ func (b *Browser) Click(ctx context.Context, selector string) error {
 	}
 
 	waitPageSettle(ctx, page)
-	return tab.Err()
+	return nil
 }
 
 // Type finds an element by selector and types text into it. Uses Rod's
@@ -180,7 +180,7 @@ func (b *Browser) Type(ctx context.Context, selector string, text string) error 
 	}
 
 	waitPageSettle(ctx, page)
-	return tab.Err()
+	return nil
 }
 
 // Select finds a <select> element by selector and selects the option matching
@@ -209,7 +209,7 @@ func (b *Browser) Select(ctx context.Context, selector string, value string) err
 	}
 
 	waitPageSettle(ctx, page)
-	return tab.Err()
+	return nil
 }
 
 // Eval executes a JavaScript expression in the page and returns the result.
@@ -232,9 +232,6 @@ func (b *Browser) Eval(ctx context.Context, js string) (string, error) {
 		return "", fmt.Errorf("evaluating JS: %w", err)
 	}
 
-	if err := tab.Err(); err != nil {
-		return "", err
-	}
 	return result.Value.String(), nil
 }
 
@@ -249,14 +246,11 @@ func (b *Browser) Back(ctx context.Context) error {
 	page := tab.page
 
 	if err := page.Context(ctx).NavigateBack(); err != nil {
-		if errTab := tab.Err(); errTab != nil {
-			return errTab
-		}
 		return fmt.Errorf("navigating back: %w", err)
 	}
 
 	waitPageSettle(ctx, page)
-	return tab.Err()
+	return nil
 }
 
 // Forward navigates forward in browser history and waits for the DOM to settle.
@@ -270,14 +264,11 @@ func (b *Browser) Forward(ctx context.Context) error {
 	page := tab.page
 
 	if err := page.Context(ctx).NavigateForward(); err != nil {
-		if errTab := tab.Err(); errTab != nil {
-			return errTab
-		}
 		return fmt.Errorf("navigating forward: %w", err)
 	}
 
 	waitPageSettle(ctx, page)
-	return tab.Err()
+	return nil
 }
 
 // translateInteractableErr converts Rod's interactability errors into our typed
@@ -340,5 +331,5 @@ func (b *Browser) Key(ctx context.Context, name string) error {
 	}
 
 	waitPageSettle(ctx, page)
-	return tab.Err()
+	return nil
 }

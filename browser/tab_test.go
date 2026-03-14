@@ -78,3 +78,37 @@ func TestErrBlocked_ErrorsAs(t *testing.T) {
 		t.Errorf("method: got %q, want %q", blocked.Method, "DELETE")
 	}
 }
+
+func TestBrowserErr_NoActiveTab(t *testing.T) {
+	b := New()
+	if err := b.Err(); err != nil {
+		t.Fatalf("expected nil with no active tab, got %v", err)
+	}
+}
+
+func TestBrowserErr_DelegatesActiveTab(t *testing.T) {
+	b := New()
+	tab := newTestTab()
+	b.active = tab
+
+	// No error — returns nil.
+	if err := b.Err(); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+
+	// Send error — Browser.Err() drains it.
+	tab.sendErr(&ErrBlocked{Method: "POST", URL: "https://example.com", Rule: "method=POST"})
+	err := b.Err()
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	var blocked *ErrBlocked
+	if !errors.As(err, &blocked) {
+		t.Fatalf("expected ErrBlocked, got %T", err)
+	}
+
+	// Drained — second call returns nil.
+	if err := b.Err(); err != nil {
+		t.Fatalf("expected nil after drain, got %v", err)
+	}
+}

@@ -39,6 +39,16 @@ func (b *Browser) WithPolicy(p *policy.Policy) *Browser {
 	return b
 }
 
+// Err returns and drains the first async error from the active tab, or nil.
+// Used by the daemon to catch policy errors that Rod's own operations surface
+// as generic failures (e.g. navigation to a blocked URL).
+func (b *Browser) Err() error {
+	if b.active == nil {
+		return nil
+	}
+	return b.active.Err()
+}
+
 // WithURL sets an explicit debugging WebSocket URL, skipping DevToolsActivePort discovery.
 func (b *Browser) WithURL(wsURL string) *Browser {
 	b.WSUrl = wsURL

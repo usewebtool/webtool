@@ -205,7 +205,7 @@ func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.browser.Open(r.Context(), req.URL); err != nil {
+	if err := s.checkErr(s.browser.Open(r.Context(), req.URL)); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -217,7 +217,7 @@ func (s *Server) handleTabs(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 
 	tabs, err := s.browser.Tabs(r.Context())
-	if err != nil {
+	if err := s.checkErr(err); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -242,7 +242,7 @@ func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 
 	ps, err := s.browser.Snapshot(r.Context(), mode)
-	if err != nil {
+	if err := s.checkErr(err); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -263,7 +263,7 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.browser.Click(r.Context(), req.Selector); err != nil {
+	if err := s.checkErr(s.browser.Click(r.Context(), req.Selector)); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -284,7 +284,7 @@ func (s *Server) handleKey(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.browser.Key(r.Context(), req.Name); err != nil {
+	if err := s.checkErr(s.browser.Key(r.Context(), req.Name)); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -305,7 +305,7 @@ func (s *Server) handleType(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.browser.Type(r.Context(), req.Selector, req.Text); err != nil {
+	if err := s.checkErr(s.browser.Type(r.Context(), req.Selector, req.Text)); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -316,7 +316,7 @@ func (s *Server) handleBack(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.browser.Back(r.Context()); err != nil {
+	if err := s.checkErr(s.browser.Back(r.Context())); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -327,7 +327,7 @@ func (s *Server) handleForward(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.browser.Forward(r.Context()); err != nil {
+	if err := s.checkErr(s.browser.Forward(r.Context())); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -349,7 +349,7 @@ func (s *Server) handleEval(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 
 	result, err := s.browser.Eval(r.Context(), req.JS)
-	if err != nil {
+	if err := s.checkErr(err); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -374,7 +374,7 @@ func (s *Server) handleSelect(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.browser.Select(r.Context(), req.Selector, req.Value); err != nil {
+	if err := s.checkErr(s.browser.Select(r.Context(), req.Selector, req.Value)); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -392,7 +392,7 @@ func (s *Server) handleExtract(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 
 	content, err := s.browser.Extract(r.Context(), req.Selector, req.AsHTML)
-	if err != nil {
+	if err := s.checkErr(err); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -413,7 +413,7 @@ func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.browser.Switch(r.Context(), req.Index); err != nil {
+	if err := s.checkErr(s.browser.Switch(r.Context(), req.Index)); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -435,7 +435,7 @@ func (s *Server) handleCDP(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 
 	result, err := s.browser.CDP(r.Context(), req.Method, req.Params)
-	if err != nil {
+	if err := s.checkErr(err); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
@@ -445,6 +445,16 @@ func (s *Server) handleCDP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, Response{})
 	go s.Shutdown(context.Background())
+}
+
+// checkErr checks for async policy errors from the browser's active tab.
+// If a policy error is present, it overrides the original error.
+// Must be called inside the mutex.
+func (s *Server) checkErr(err error) error {
+	if errTab := s.browser.Err(); errTab != nil {
+		return errTab
+	}
+	return err
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

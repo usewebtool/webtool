@@ -31,8 +31,5 @@ func (b *Browser) CDP(ctx context.Context, method string, params json.RawMessage
 		return nil, fmt.Errorf("cdp %s: %w", method, err)
 	}
 
-	if err := tab.Err(); err != nil {
-		return nil, err
-	}
 	return res, nil
 }

@@ -25,10 +25,6 @@ func (b *Browser) Open(ctx context.Context, url string) error {
 		}
 		return nil
 	}); err != nil {
-		// Navigation failed — check if it was blocked by policy.
-		if errTab := tab.Err(); errTab != nil {
-			return errTab
-		}
 		return err
 	}
 
@@ -37,7 +33,7 @@ func (b *Browser) Open(ctx context.Context, url string) error {
 		return fmt.Errorf("activating page: %w", err)
 	}
 
-	return tab.Err()
+	return nil
 }
 
 // Tabs returns all open browser tabs, filtering out DevTools and other non-page targets.
