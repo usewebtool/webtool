@@ -65,6 +65,41 @@ func TestTodoMVC_AddAndComplete(t *testing.T) {
 	}
 }
 
+func TestTodoMVC_HoverAndDelete(t *testing.T) {
+	webtoolOK(t, "open", todoMVCURL)
+
+	// Add a todo.
+	snap := webtoolOK(t, "snapshot")
+	inputID := findElement(t, snap, "textbox")
+	webtoolOK(t, "type", inputID, "Delete me")
+	webtoolOK(t, "key", "Enter")
+
+	snap = webtoolOK(t, "snapshot")
+	if !strings.Contains(snap, "Delete me") {
+		t.Fatalf("expected 'Delete me' in snapshot, got:\n%s", snap)
+	}
+
+	// The delete button is hidden until hover. Verify it's not visible.
+	if strings.Contains(snap, "Delete") && !strings.Contains(snap, "Delete me") {
+		t.Fatalf("expected no Delete button before hover, got:\n%s", snap)
+	}
+
+	// Hover over the task label to reveal the delete button.
+	labelID := findElement(t, snap, `label "Delete me"`)
+	webtoolOK(t, "hover", labelID)
+
+	// Snapshot should now show the delete button.
+	snap = webtoolOK(t, "snapshot")
+	deleteID := findElement(t, snap, `button "Delete"`)
+	webtoolOK(t, "click", deleteID)
+
+	// Verify the task is gone.
+	snap = webtoolOK(t, "snapshot")
+	if strings.Contains(snap, "Delete me") {
+		t.Fatalf("expected 'Delete me' to be removed, got:\n%s", snap)
+	}
+}
+
 // findElement returns the backendNodeId for the first element matching the given role in a snapshot.
 // Snapshot lines look like: [12345] role "name"
 func findElement(t *testing.T, snapshot, role string) string {
