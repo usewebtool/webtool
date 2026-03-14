@@ -84,6 +84,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /select", s.handleSelect)
 	mux.HandleFunc("POST /extract", s.handleExtract)
 	mux.HandleFunc("POST /switch", s.handleSwitch)
+	mux.HandleFunc("POST /upload", s.handleUpload)
 	mux.HandleFunc("POST /cdp", s.handleCDP)
 	mux.HandleFunc("POST /stop", s.handleStop)
 
@@ -426,6 +427,31 @@ func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 
 	if err := s.checkErr(s.browser.Switch(r.Context(), req.Index)); err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, Response{})
+}
+
+func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
+	var req UploadRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, Response{Error: fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+	if req.Selector == "" {
+		writeJSON(w, http.StatusBadRequest, Response{Error: "selector is required"})
+		return
+	}
+	if len(req.Files) == 0 {
+		writeJSON(w, http.StatusBadRequest, Response{Error: "files is required"})
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.checkErr(s.browser.Upload(r.Context(), req.Selector, req.Files)); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}

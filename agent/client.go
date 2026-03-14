@@ -253,6 +253,15 @@ func (c *Client) Switch(ctx context.Context, index int) error {
 	return resp.Err()
 }
 
+// Upload sets one or more files on a file input element.
+func (c *Client) Upload(ctx context.Context, selector string, files []string) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/upload", UploadRequest{Selector: selector, Files: files}, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
 // Snapshot returns a text snapshot of the current page's elements.
 func (c *Client) Snapshot(ctx context.Context, mode browser.SnapshotMode) (string, error) {
 	path := "/snapshot"

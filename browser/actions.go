@@ -289,6 +289,31 @@ func (b *Browser) Reload(ctx context.Context) error {
 	return nil
 }
 
+// Upload sets one or more files on a <input type="file"> element. Each path
+// must be absolute and accessible to Chrome. Uses Rod's Element.SetFiles
+// which calls CDP DOM.setFileInputFiles.
+func (b *Browser) Upload(ctx context.Context, selector string, files []string) error {
+	tab, err := b.activeTab()
+	if err != nil {
+		return err
+	}
+	page := tab.page
+
+	el, err := resolveElement(ctx, page, selector)
+	if err != nil {
+		return err
+	}
+
+	el = el.Context(ctx)
+
+	if err := el.SetFiles(files); err != nil {
+		return fmt.Errorf("setting files: %w", err)
+	}
+
+	waitPageSettle(ctx, page)
+	return nil
+}
+
 // translateInteractableErr converts Rod's interactability errors into our typed
 // errors with backendNodeId context for the agent. Falls back to a generic
 // fmt.Errorf if the error is not a recognized Rod interactability type.

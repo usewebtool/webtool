@@ -79,6 +79,12 @@ type SelectRequest struct {
 	Value    string `json:"value"`
 }
 
+// UploadRequest is the request body for the /upload endpoint.
+type UploadRequest struct {
+	Selector string   `json:"selector"`
+	Files    []string `json:"files"`
+}
+
 // SwitchRequest is the request body for the /switch endpoint.
 type SwitchRequest struct {
 	Index int `json:"index"`
