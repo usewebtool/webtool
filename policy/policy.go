@@ -88,6 +88,9 @@ func compileRules(rules []Rule) error {
 			r.methodRegex = re
 		}
 		if r.URL != "" {
+			if err := validateURLPattern(r.URL); err != nil {
+				return err
+			}
 			pattern := proto.PatternToReg(r.URL)
 			re, err := regexp.Compile(pattern)
 			if err != nil {
@@ -102,6 +105,15 @@ func compileRules(rules []Rule) error {
 			}
 			r.bodyRegex = re
 		}
+	}
+	return nil
+}
+
+// validateURLPattern checks for regex metacharacters that indicate the user
+// is trying to use regex instead of CDP wildcard syntax.
+func validateURLPattern(url string) error {
+	if strings.ContainsAny(url, `|\^$`) {
+		return fmt.Errorf("invalid url in policy: %q. Regular expressions are not supported in url policy rules. Only wildcard characters * and ? are supported", url)
 	}
 	return nil
 }

@@ -468,6 +468,31 @@ func TestIsAllowed_NilBodyWithBodyRules(t *testing.T) {
 	}
 }
 
+func TestCompileRules_RejectsRegexInURL(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{"pipe alternation", "(mail|calendar).google.com"},
+		{"backslash escape", `mail\.google\.com`},
+		{"caret anchor", "^https://example.com"},
+		{"dollar anchor", "https://example.com$"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rules := []Rule{{URL: tt.url}}
+			err := compileRules(rules)
+			if err == nil {
+				t.Fatalf("expected error for URL %q, got nil", tt.url)
+			}
+			if !strings.Contains(err.Error(), "Regular expressions are not supported") {
+				t.Errorf("expected regex warning in error, got: %s", err)
+			}
+		})
+	}
+}
+
 func TestLoad_NoDenyRules(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "empty.yml")
