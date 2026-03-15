@@ -1,7 +1,7 @@
 ---
 name: webtool
 description: Drive Chrome browser via CLI for web automation, form filling, scraping, and testing. Use when the user asks to interact with websites, fill forms, extract content, click buttons, or automate any browser task. Provides text snapshots of pages with element IDs for precise interaction.
-compatibility: Requires webtool binary (Go) and a Chromium based browser like Chrome.
+compatibility: Requires webtool binary (Go) and Chrome with remote debugging enabled.
 allowed-tools: Bash(webtool:*)
 ---
 
