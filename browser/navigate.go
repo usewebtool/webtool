@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/go-rod/rod"
@@ -65,24 +66,22 @@ func (b *Browser) openNewTab(ctx context.Context, url string) error {
 }
 
 // Tabs returns all open browser tabs, filtering out DevTools and other non-page targets.
+// Uses pageTargets() for enumeration so tab indices are consistent with Switch().
 func (b *Browser) Tabs(ctx context.Context) ([]TabInfo, error) {
 	if err := b.Connect(); err != nil {
 		return nil, err
 	}
 
-	all, err := b.rod.Pages()
+	pages, err := b.pageTargets(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("listing pages: %w", err)
+		return nil, err
 	}
 
-	tabs := make([]TabInfo, 0, len(all))
-	for _, p := range all {
+	tabs := make([]TabInfo, 0, len(pages))
+	for _, p := range pages {
 		info, err := p.Context(ctx).Info()
 		if err != nil {
 			return nil, fmt.Errorf("getting page info: %w", err)
-		}
-		if !isUserTab(info) {
-			continue
 		}
 		t := TabInfo{
 			Index:    len(tabs) + 1,
@@ -123,7 +122,10 @@ func (b *Browser) Switch(ctx context.Context, index int) error {
 	return nil
 }
 
-// pageTargets returns only "page" type targets, filtering out DevTools, extensions, etc.
+// pageTargets returns only "page" type targets, filtered and sorted by TargetID.
+// Sorting by TargetID ensures deterministic tab indices across calls — without this,
+// CDP can return targets in different orders, causing the index from `tabs` to point
+// at a different tab in a subsequent `tab N` call.
 func (b *Browser) pageTargets(ctx context.Context) ([]*rod.Page, error) {
 	all, err := b.rod.Pages()
 	if err != nil {
@@ -140,6 +142,10 @@ func (b *Browser) pageTargets(ctx context.Context) ([]*rod.Page, error) {
 			pages = append(pages, p)
 		}
 	}
+
+	sort.Slice(pages, func(i, j int) bool {
+		return pages[i].TargetID < pages[j].TargetID
+	})
 
 	return pages, nil
 }
