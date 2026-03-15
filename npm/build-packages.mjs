@@ -11,6 +11,10 @@ const repoRoot = path.resolve(__dirname, "..");
 const DEFAULT_DIST_DIR = path.join(repoRoot, "dist");
 const DEFAULT_OUT_DIR = path.join(DEFAULT_DIST_DIR, "npm");
 const ROOT_BIN_SOURCE = path.join(__dirname, "root", "bin", "webtool.js");
+const LICENSE_SOURCE = path.join(repoRoot, "LICENSE");
+const REPOSITORY_URL = "git+https://github.com/machinae/webtool.git";
+const HOMEPAGE_URL = "https://github.com/machinae/webtool";
+const BUGS_URL = "https://github.com/machinae/webtool/issues";
 
 const TARGETS = [
   {
@@ -124,6 +128,16 @@ function buildRootPackageJson({ packageName, version, optionalDependencies }) {
     name: packageName,
     version,
     description: "A CLI for your browser.",
+    license: "Apache-2.0",
+    repository: {
+      type: "git",
+      url: REPOSITORY_URL,
+    },
+    homepage: HOMEPAGE_URL,
+    bugs: {
+      url: BUGS_URL,
+    },
+    keywords: ["browser", "automation", "chrome", "cli", "cdp", "agent"],
     bin: {
       [packageName]: "bin/webtool.js",
     },
@@ -140,6 +154,15 @@ function buildPlatformPackageJson({ packageName, version, target }) {
     name: packageName,
     version,
     description: `Platform package for ${packageName} (${target.packageSuffix}).`,
+    license: "Apache-2.0",
+    repository: {
+      type: "git",
+      url: REPOSITORY_URL,
+    },
+    homepage: HOMEPAGE_URL,
+    bugs: {
+      url: BUGS_URL,
+    },
     os: [target.npmOs],
     cpu: [target.npmCpu],
     files: ["vendor"],
@@ -185,9 +208,11 @@ async function main() {
     const packageDir = path.join(outDir, target.packageSuffix);
     const packageJsonPath = path.join(packageDir, "package.json");
     const readmePath = path.join(packageDir, "README.md");
+    const licensePath = path.join(packageDir, "LICENSE");
     const binaryPath = path.join(packageDir, "vendor", target.binaryName);
 
     await copyFile(path.resolve(repoRoot, artifact.path), binaryPath);
+    await copyFile(LICENSE_SOURCE, licensePath);
     if (target.npmOs !== "win32") {
       await ensureExecutable(binaryPath);
     }
@@ -215,8 +240,10 @@ async function main() {
   const rootBinPath = path.join(rootDir, "bin", "webtool.js");
   const rootPackageJsonPath = path.join(rootDir, "package.json");
   const rootReadmePath = path.join(rootDir, "README.md");
+  const rootLicensePath = path.join(rootDir, "LICENSE");
 
   await copyFile(ROOT_BIN_SOURCE, rootBinPath);
+  await copyFile(LICENSE_SOURCE, rootLicensePath);
   await ensureExecutable(rootBinPath);
   await fs.writeFile(
     rootPackageJsonPath,
