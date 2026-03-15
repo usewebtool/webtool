@@ -13,7 +13,7 @@ webtool drives your local Chrome browser through the Chrome DevTools Protocol. I
 
 Before first use, the user must enable remote debugging in Chrome at `chrome://inspect/#remote-debugging`. This only needs to be done once — Chrome remembers the setting.
 
-To connect, run `webtool start`. Chrome will show a permission dialog — **ask the user to click Allow**. This happens once per daemon session. After that, all commands work.
+`webtool` does **not** auto-start its daemon on first command. Before using normal commands, run `webtool start`. Chrome will show a permission dialog — **ask the user to click Allow**. This happens once per daemon session. After that, all commands work.
 
 ```bash
 webtool start    # start daemon — user must click Allow in Chrome

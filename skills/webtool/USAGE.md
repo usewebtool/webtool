@@ -6,14 +6,17 @@ A fast CLI tool that drives Chrome via Chrome DevTools Protocol. Designed for ag
 
 ## Quick Start
 
+`webtool` does **not** auto-start its daemon on first use. Start it explicitly before running normal commands.
+
 ```bash
+webtool start                      # start daemon first
 webtool open https://example.com   # navigate to a URL
 webtool snapshot                   # see interactive elements
 webtool click 43821                # click an element by its ID
 webtool type 43822 "hello"         # type into an input
 ```
 
-The daemon starts automatically on first use and connects to your running Chrome instance.
+Chrome may show a permission dialog when the daemon connects. Ask the user to click Allow.
 
 ## Agent Workflow
 
@@ -342,7 +345,7 @@ webtool cdp DOM.getDocument
 
 Start the daemon in the background. The daemon holds the Chrome WebSocket connection so you only approve the Chrome permission dialog once.
 
-Usually not needed — the daemon auto-starts on first command.
+Required before running normal `webtool` commands. The CLI does not auto-start the daemon on first command.
 
 ```bash
 webtool start
