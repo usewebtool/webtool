@@ -24,6 +24,8 @@ The core loop is: **snapshot → reason → action → snapshot**
 3. Perform an action (`click`, `type`, `select`, etc.)
 4. Take another `snapshot` to see the result
 
+Every action command automatically waits for the DOM to stabilize before returning, so the next snapshot reflects the settled page state.
+
 ## Global Flags
 
 | Flag | Default | Description |
@@ -53,7 +55,12 @@ Navigate the browser to a URL. Waits for the page to load.
 ```bash
 webtool open https://example.com
 webtool open "https://google.com/search?q=hello+world"
+webtool open --new https://example.com   # open in a new tab
 ```
+
+| Flag | Description |
+|------|-------------|
+| `--new` | Open the URL in a new tab instead of navigating the current tab. The new tab becomes active. |
 
 #### `back`
 
@@ -69,6 +76,14 @@ Navigate forward in browser history.
 
 ```bash
 webtool forward
+```
+
+#### `reload`
+
+Reload the current page.
+
+```bash
+webtool reload
 ```
 
 ### Page Inspection
@@ -225,6 +240,45 @@ Supported keys:
 | `PageUp` | |
 | `PageDown` | |
 
+#### `hover <selector>`
+
+Move the mouse over an element without clicking. Triggers CSS `:hover` states and JS `mouseenter`/`mouseover` events. Useful for revealing dropdown menus, tooltips, and hidden action buttons that only appear on hover.
+
+```bash
+webtool hover 43821
+webtool hover "#dropdown-trigger"
+```
+
+After hovering, take a `snapshot` to see newly revealed elements.
+
+#### `upload <selector> <file> [file...]`
+
+Set one or more files on a `<input type="file">` element. File paths are resolved to absolute paths.
+
+```bash
+webtool upload 43825 document.pdf
+webtool upload "#file-input" photo1.jpg photo2.jpg photo3.jpg
+```
+
+Note: Chrome's accessibility tree exposes file inputs as `button "Choose File"` — they appear in snapshots as buttons, not as a distinct file input role.
+
+### Waiting
+
+#### `wait <duration|selector>`
+
+Wait for a duration or until an element exists in the DOM.
+
+```bash
+webtool wait 2s                    # sleep for 2 seconds
+webtool wait 500ms                 # sleep for 500 milliseconds
+webtool wait "#results"            # wait until element exists (CSS selector)
+webtool wait "//div[@class='loaded']"   # wait until element exists (XPath)
+```
+
+If the argument parses as a Go duration (e.g. `2s`, `500ms`, `1m`), it sleeps for that long. Otherwise it treats the argument as a selector and polls until the element appears or `--timeout` expires.
+
+Governed by the global `--timeout` flag. `webtool wait 60s` will time out at the default 30s unless you pass `--timeout 60s`.
+
 ### JavaScript
 
 #### `eval <js>`
@@ -247,7 +301,7 @@ webtool eval "(function(){ const a = 1; return a; })()"
 
 #### `tabs`
 
-List open browser tabs. Output is one tab per line: `<index> <title> <url>`. DevTools, `about:`, and `chrome://` tabs are filtered out.
+List open browser tabs. Output is one tab per line: `<index> <title> <url>`. The tab webtool will operate on is marked `[active]`. DevTools, `about:`, and `chrome://` tabs are filtered out.
 
 ```bash
 webtool tabs
@@ -256,9 +310,11 @@ webtool tabs
 Output:
 
 ```
-1 Example Domain https://example.com
+1 Example Domain https://example.com [active]
 2 Google https://google.com
 ```
+
+`[active]` indicates which tab the next command will operate on. This is the tab last navigated or switched to by webtool, which may differ from the tab visually focused in Chrome's tab bar.
 
 #### `tab <index>`
 
@@ -266,6 +322,18 @@ Switch to a tab by its 1-based index (as shown by `webtool tabs`).
 
 ```bash
 webtool tab 2
+```
+
+### Advanced
+
+#### `cdp <method> [params-json]`
+
+Send a raw Chrome DevTools Protocol command to the active page. Use as a fallback for CDP methods not covered by dedicated commands.
+
+```bash
+webtool cdp Input.insertText '{"text": "hello"}'
+webtool cdp Page.reload
+webtool cdp DOM.getDocument
 ```
 
 ### Daemon Management
@@ -278,7 +346,12 @@ Usually not needed — the daemon auto-starts on first command.
 
 ```bash
 webtool start
+webtool start --policy policy.yml   # start with a security policy
 ```
+
+| Flag | Description |
+|------|-------------|
+| `-p`, `--policy` | Path to a security policy YAML file for request interception |
 
 #### `stop`
 
@@ -287,6 +360,13 @@ Stop the daemon. Idempotent — exits cleanly if no daemon is running.
 ```bash
 webtool stop
 ```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Any error (element not found, timeout, connection failed, etc.) |
 
 ## Errors
 
@@ -302,6 +382,7 @@ Actionability errors are returned when an element cannot be interacted with. Eac
 | `element not stable` | Position/size still changing (animation) | Wait and retry |
 | `option not found` | No matching option in select dropdown | Use `extract` to see available options |
 | `element disabled` | Element is disabled | Wait for it to become enabled |
+| `request blocked by policy` | Network request blocked by security policy | Check the policy rules |
 
 ## Environment Variables
 
