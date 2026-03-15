@@ -22,8 +22,7 @@ const TARGETS = [
     goarch: "amd64",
     npmOs: "darwin",
     npmCpu: "x64",
-    packageSuffix: "darwin-x64",
-    alias: "webtool-darwin-x64",
+    packageNameSuffix: "darwin-x64",
     binaryName: "webtool",
   },
   {
@@ -31,8 +30,7 @@ const TARGETS = [
     goarch: "arm64",
     npmOs: "darwin",
     npmCpu: "arm64",
-    packageSuffix: "darwin-arm64",
-    alias: "webtool-darwin-arm64",
+    packageNameSuffix: "darwin-arm64",
     binaryName: "webtool",
   },
   {
@@ -40,8 +38,7 @@ const TARGETS = [
     goarch: "amd64",
     npmOs: "linux",
     npmCpu: "x64",
-    packageSuffix: "linux-x64",
-    alias: "webtool-linux-x64",
+    packageNameSuffix: "linux-x64",
     binaryName: "webtool",
   },
   {
@@ -49,8 +46,7 @@ const TARGETS = [
     goarch: "arm64",
     npmOs: "linux",
     npmCpu: "arm64",
-    packageSuffix: "linux-arm64",
-    alias: "webtool-linux-arm64",
+    packageNameSuffix: "linux-arm64",
     binaryName: "webtool",
   },
   {
@@ -58,8 +54,7 @@ const TARGETS = [
     goarch: "amd64",
     npmOs: "win32",
     npmCpu: "x64",
-    packageSuffix: "win32-x64",
-    alias: "webtool-win32-x64",
+    packageNameSuffix: "win32-x64",
     binaryName: "webtool.exe",
   },
   {
@@ -67,8 +62,7 @@ const TARGETS = [
     goarch: "arm64",
     npmOs: "win32",
     npmCpu: "arm64",
-    packageSuffix: "win32-arm64",
-    alias: "webtool-win32-arm64",
+    packageNameSuffix: "win32-arm64",
     binaryName: "webtool.exe",
   },
 ];
@@ -123,11 +117,8 @@ function getBinaryArtifact(artifacts, target) {
   );
 }
 
-function buildRootPackageJson({ packageName, version, optionalDependencies }) {
+function buildCommonPackageJsonFields() {
   return {
-    name: packageName,
-    version,
-    description: "A CLI for your browser.",
     license: "Apache-2.0",
     repository: {
       type: "git",
@@ -138,13 +129,22 @@ function buildRootPackageJson({ packageName, version, optionalDependencies }) {
       url: BUGS_URL,
     },
     keywords: ["browser", "automation", "chrome", "cli", "cdp", "agent"],
+    engines: {
+      node: ">=16",
+    },
+  };
+}
+
+function buildRootPackageJson({ packageName, version, optionalDependencies }) {
+  return {
+    name: packageName,
+    version,
+    description: "A CLI for your browser.",
+    ...buildCommonPackageJsonFields(),
     bin: {
       [packageName]: "bin/webtool.js",
     },
     files: ["bin"],
-    engines: {
-      node: ">=16",
-    },
     optionalDependencies,
   };
 }
@@ -153,31 +153,30 @@ function buildPlatformPackageJson({ packageName, version, target }) {
   return {
     name: packageName,
     version,
-    description: `Platform package for ${packageName} (${target.packageSuffix}).`,
-    license: "Apache-2.0",
-    repository: {
-      type: "git",
-      url: REPOSITORY_URL,
-    },
-    homepage: HOMEPAGE_URL,
-    bugs: {
-      url: BUGS_URL,
-    },
+    description: `Platform package for webtool (${target.packageNameSuffix}).`,
+    ...buildCommonPackageJsonFields(),
     os: [target.npmOs],
     cpu: [target.npmCpu],
     files: ["vendor"],
-    engines: {
-      node: ">=16",
-    },
   };
 }
 
 function buildRootReadme({ packageName }) {
-  return `# ${packageName}\n\nInstall with:\n\n\`npm install -g ${packageName}\`\n`;
+  return `# ${packageName}
+
+Install with:
+
+\`npm install -g ${packageName}\`
+`;
 }
 
-function buildPlatformReadme({ packageName, target }) {
-  return `# ${packageName} ${target.packageSuffix}\n\nThis is an internal platform package for ${packageName}. Install the root package instead:\n\n\`npm install -g ${packageName}\`\n`;
+function buildPlatformReadme({ rootPackageName, platformPackageName }) {
+  return `# ${platformPackageName}
+
+This is an internal platform package for ${rootPackageName}. Install the root package instead:
+
+\`npm install -g ${rootPackageName}\`
+`;
 }
 
 async function main() {
@@ -194,7 +193,7 @@ async function main() {
   await fs.mkdir(outDir, { recursive: true });
 
   const optionalDependencies = {};
-  const packages = [];
+  const platformPackages = [];
 
   for (const target of TARGETS) {
     const artifact = getBinaryArtifact(artifacts, target);
@@ -204,8 +203,8 @@ async function main() {
       );
     }
 
-    const packageVersion = `${version}-${target.packageSuffix}`;
-    const packageDir = path.join(outDir, target.packageSuffix);
+    const platformPackageName = `${packageName}-${target.packageNameSuffix}`;
+    const packageDir = path.join(outDir, target.packageNameSuffix);
     const packageJsonPath = path.join(packageDir, "package.json");
     const readmePath = path.join(packageDir, "README.md");
     const licensePath = path.join(packageDir, "LICENSE");
@@ -218,21 +217,24 @@ async function main() {
     }
 
     const packageJson = buildPlatformPackageJson({
-      packageName,
-      version: packageVersion,
+      packageName: platformPackageName,
+      version,
       target,
     });
-    await fs.writeFile(`${packageJsonPath}`, `${JSON.stringify(packageJson, null, 2)}\n`);
-    await fs.writeFile(readmePath, buildPlatformReadme({ packageName, target }));
+    await fs.writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+    await fs.writeFile(
+      readmePath,
+      buildPlatformReadme({ rootPackageName: packageName, platformPackageName }),
+    );
 
-    optionalDependencies[target.alias] = `npm:${packageName}@${packageVersion}`;
-    packages.push({
-      name: packageName,
-      alias: target.alias,
-      version: packageVersion,
+    optionalDependencies[platformPackageName] = version;
+    platformPackages.push({
+      name: platformPackageName,
+      version,
       dir: path.relative(repoRoot, packageDir),
       os: target.npmOs,
       cpu: target.npmCpu,
+      binary: target.binaryName,
     });
   }
 
@@ -259,17 +261,22 @@ async function main() {
       version,
       dir: path.relative(repoRoot, rootDir),
     },
-    platforms: packages,
+    platforms: platformPackages,
     publishOrder: [
-      ...packages.map((pkg) => ({ dir: pkg.dir, name: pkg.name, version: pkg.version })),
-      { dir: path.relative(repoRoot, rootDir), name: packageName, version },
+      ...platformPackages.map((pkg) => ({
+        dir: pkg.dir,
+        name: pkg.name,
+        version: pkg.version,
+      })),
+      {
+        dir: path.relative(repoRoot, rootDir),
+        name: packageName,
+        version,
+      },
     ],
   };
 
-  await fs.writeFile(
-    path.join(outDir, "manifest.json"),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-  );
+  await fs.writeFile(path.join(outDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 
   console.log(`Generated npm packages for ${packageName}@${version} in ${outDir}`);
 }

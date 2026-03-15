@@ -4,39 +4,24 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
+const ROOT_PACKAGE_NAME = "webtool";
 const TARGETS = {
   darwin: {
-    arm64: { alias: "webtool-darwin-arm64", binary: "webtool" },
-    x64: { alias: "webtool-darwin-x64", binary: "webtool" },
+    arm64: { packageName: "webtool-darwin-arm64", binary: "webtool" },
+    x64: { packageName: "webtool-darwin-x64", binary: "webtool" },
   },
   linux: {
-    arm64: { alias: "webtool-linux-arm64", binary: "webtool" },
-    x64: { alias: "webtool-linux-x64", binary: "webtool" },
+    arm64: { packageName: "webtool-linux-arm64", binary: "webtool" },
+    x64: { packageName: "webtool-linux-x64", binary: "webtool" },
   },
   win32: {
-    arm64: { alias: "webtool-win32-arm64", binary: "webtool.exe" },
-    x64: { alias: "webtool-win32-x64", binary: "webtool.exe" },
+    arm64: { packageName: "webtool-win32-arm64", binary: "webtool.exe" },
+    x64: { packageName: "webtool-win32-x64", binary: "webtool.exe" },
   },
 };
 
-function detectPackageManager() {
-  const userAgent = process.env.npm_config_user_agent || "";
-  if (/\bbun\//.test(userAgent)) {
-    return "bun";
-  }
-
-  const execPath = process.env.npm_execpath || "";
-  if (execPath.includes("bun")) {
-    return "bun";
-  }
-
-  return userAgent ? "npm" : null;
-}
-
 function installHint() {
-  return detectPackageManager() === "bun"
-    ? "bun install -g webtool@latest"
-    : "npm install -g webtool@latest";
+  return `npm install -g ${ROOT_PACKAGE_NAME}@latest`;
 }
 
 function resolveBinary() {
@@ -52,10 +37,10 @@ function resolveBinary() {
 
   let packageJsonPath;
   try {
-    packageJsonPath = require.resolve(`${target.alias}/package.json`);
+    packageJsonPath = require.resolve(`${target.packageName}/package.json`);
   } catch {
     throw new Error(
-      `Missing optional dependency ${target.alias}. Reinstall webtool: ${installHint()}`,
+      `Missing optional dependency ${target.packageName}. Reinstall webtool: ${installHint()}`,
     );
   }
 
@@ -63,7 +48,7 @@ function resolveBinary() {
   const binaryPath = path.join(packageRoot, "vendor", target.binary);
   if (!fs.existsSync(binaryPath)) {
     throw new Error(
-      `Missing binary for ${target.alias} at ${binaryPath}. Reinstall webtool: ${installHint()}`,
+      `Missing binary for ${target.packageName} at ${binaryPath}. Reinstall webtool: ${installHint()}`,
     );
   }
 
