@@ -15,8 +15,14 @@ var (
 
 var extractCmd = &cobra.Command{
 	Use:   "extract [selector]",
-	Short: "Extract page content as markdown (or HTML with --html). Default timeout 1s.",
-	Args:  cobra.MaximumNArgs(1),
+	Short: "Extract page content as markdown or HTML.",
+	Long: `Extract page content as markdown (default) or raw HTML (with --html).
+Use --main to extract only the main content area. Unlike snapshot, this returns
+readable page content rather than an interactive element tree.`,
+	Example: `  webtool extract
+  webtool extract --main
+  webtool extract --html 43821`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		selector := ""
 		if len(args) > 0 {

@@ -15,7 +15,13 @@ var (
 var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
 	Short: "Print a text snapshot of the current page.",
-	Args:  cobra.NoArgs,
+	Long: `Print a text snapshot of the current page. Each line shows:
+  [backendNodeId] role "name" attributes
+Use the backendNodeId in action commands (click, type, etc).`,
+	Example: `  webtool snapshot
+  webtool snapshot -i
+  webtool snapshot -a`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		mode := browser.ModeDefault
 		if snapshotInteractive {

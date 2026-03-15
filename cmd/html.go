@@ -8,9 +8,10 @@ import (
 )
 
 var htmlCmd = &cobra.Command{
-	Use:   "html [selector]",
-	Short: "Extract page content as HTML. Alias for extract --html.",
-	Args:  cobra.MaximumNArgs(1),
+	Use:     "html [selector]",
+	Short:   "Get raw HTML of the page or a specific element.",
+	Example: "  webtool html\n  webtool html 43821",
+	Args:    cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		selector := ""
 		if len(args) > 0 {

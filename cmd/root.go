@@ -17,9 +17,12 @@ var client *agent.Client
 var timeoutFlag time.Duration
 
 var rootCmd = &cobra.Command{
-	Use:           "webtool",
-	Short:         "Fast CLI for your Chrome browser.",
-	Long:          "A fast, composable CLI tool that drives a Chrome browser via Chrome DevTools Protocol. Designed for agent-driven workflows.",
+	Use:   "webtool",
+	Short: "Fast CLI for your Chrome browser.",
+	Long: `A fast, composable CLI tool that drives a Chrome browser via Chrome DevTools Protocol.
+
+Workflow: snapshot → act → snapshot.
+Take a snapshot to see the page, act on an element by its ID, then snapshot again.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

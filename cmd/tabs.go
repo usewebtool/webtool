@@ -9,7 +9,9 @@ import (
 var tabsCmd = &cobra.Command{
 	Use:   "tabs",
 	Short: "List open browser tabs.",
-	Args:  cobra.NoArgs,
+	Long: `List open browser tabs. Tab order is arbitrary and may not match the
+order you see in Chrome's tab bar. Use the index shown here with "webtool tab".`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		tabs, err := client.Tabs(cmd.Context())
 		if err != nil {

@@ -8,9 +8,10 @@ import (
 )
 
 var uploadCmd = &cobra.Command{
-	Use:   "upload <selector> <file> [file...]",
-	Short: "Set one or more files on a file input element.",
-	Args:  cobra.MinimumNArgs(2),
+	Use:     "upload <selector> <file> [file...]",
+	Short:   "Set one or more files on a file input element.",
+	Example: "  webtool upload 43821 photo.jpg",
+	Args:    cobra.MinimumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(cmd.Context(), timeoutFlag)
 		defer cancel()
