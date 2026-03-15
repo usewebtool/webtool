@@ -136,10 +136,10 @@ func (c *Client) Health(ctx context.Context) error {
 	return resp.Err()
 }
 
-// Open navigates the browser to the given URL.
-func (c *Client) Open(ctx context.Context, url string) error {
+// Open navigates the browser to the given URL. If newTab is true, opens in a new tab.
+func (c *Client) Open(ctx context.Context, url string, newTab bool) error {
 	var resp Response
-	if err := c.do(ctx, "POST", "/open", OpenRequest{URL: url}, &resp); err != nil {
+	if err := c.do(ctx, "POST", "/open", OpenRequest{URL: url, NewTab: newTab}, &resp); err != nil {
 		return err
 	}
 	return resp.Err()

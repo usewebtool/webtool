@@ -208,7 +208,7 @@ func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.checkErr(s.browser.Open(r.Context(), req.URL)); err != nil {
+	if err := s.checkErr(s.browser.Open(r.Context(), req.URL, req.NewTab)); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}

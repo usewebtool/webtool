@@ -25,7 +25,8 @@ func (r Response) Err() error {
 
 // OpenRequest is the request body for the /open endpoint.
 type OpenRequest struct {
-	URL string `json:"url"`
+	URL    string `json:"url"`
+	NewTab bool   `json:"new_tab,omitempty"`
 }
 
 // TabsResponse is the response for the /tabs endpoint.

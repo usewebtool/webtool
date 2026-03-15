@@ -10,9 +10,12 @@ import (
 )
 
 // Open navigates the active page to the given URL.
-// If a TargetID is saved from a previous command, it reuses that page.
-// Otherwise it picks the first available page.
-func (b *Browser) Open(ctx context.Context, url string) error {
+// If newTab is true, a new tab is created instead of navigating the current one.
+func (b *Browser) Open(ctx context.Context, url string, newTab bool) error {
+	if newTab {
+		return b.openNewTab(ctx, url)
+	}
+
 	tab, err := b.activeTab()
 	if err != nil {
 		return err
@@ -33,6 +36,31 @@ func (b *Browser) Open(ctx context.Context, url string) error {
 		return fmt.Errorf("activating page: %w", err)
 	}
 
+	return nil
+}
+
+// openNewTab creates a new tab, navigates it to the URL, and sets it as active.
+func (b *Browser) openNewTab(ctx context.Context, url string) error {
+	if err := b.Connect(); err != nil {
+		return err
+	}
+
+	page, err := b.rod.Page(proto.TargetCreateTarget{URL: url})
+	if err != nil {
+		return fmt.Errorf("creating new tab: %w", err)
+	}
+
+	page = page.Context(ctx)
+
+	if err := page.WaitLoad(); err != nil {
+		return fmt.Errorf("waiting for page load: %w", err)
+	}
+
+	if _, err := page.Activate(); err != nil {
+		return fmt.Errorf("activating new tab: %w", err)
+	}
+
+	b.getOrCreateTab(page)
 	return nil
 }
 
