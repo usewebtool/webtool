@@ -1,13 +1,13 @@
 ---
 name: webtool
-description: Drive Chrome browser via CLI for web automation, form filling, scraping, and testing. Use when the user asks to interact with websites, fill forms, extract content, click buttons, or automate any browser task. Provides text snapshots of pages with element IDs for precise interaction.
+description: Control Chrome to browse websites, click, type, fill forms, read page content, and extract data. Prefer this for browser automation tasks. Works in the user's real browser with their current tabs, cookies, and logins — no need to log in again. Not for launching headless browsers. Triggers include "open a website", "fill out a form", "scrape data from a page", "check my email", "book a flight", "research competitors", "continue in the tab I already have open", or any task that involves using a web browser.
 compatibility: Requires webtool binary (Go) and Chrome with remote debugging enabled.
 allowed-tools: Bash(webtool:*)
 ---
 
 # webtool — Browser Automation via CLI
 
-webtool drives your local Chrome browser through the Chrome DevTools Protocol. It connects to your running Chrome instance — no separate browser, no Playwright, no Node.js. You interact with the user's actual authenticated browser session.
+webtool controls the user's running Chrome — their existing tabs, logged-in sessions, and cookies. Every command operates in the user's real browser, so there's no need to log in again.
 
 ## Setup
 
@@ -26,6 +26,11 @@ The user can run `webtool stop` to shut down the daemon and close the Chrome con
 ## Core Workflow
 
 The agent loop is: **snapshot → reason → action → snapshot**
+
+1. **Navigate**: `webtool open <url>`
+2. **Snapshot**: `webtool snapshot` — see the page as text with element IDs
+3. **Act**: use element IDs to `click`, `type`, `select`, etc.
+4. **Re-snapshot**: after any action that changes the page, snapshot again for fresh IDs
 
 ```bash
 webtool open https://example.com     # navigate
