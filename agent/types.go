@@ -86,6 +86,11 @@ type UploadRequest struct {
 	Files    []string `json:"files"`
 }
 
+// WaitRequest is the request body for the /wait endpoint.
+type WaitRequest struct {
+	Target string `json:"target"`
+}
+
 // HoverRequest is the request body for the /hover endpoint.
 type HoverRequest struct {
 	Selector string `json:"selector"`

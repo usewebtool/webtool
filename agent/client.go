@@ -253,6 +253,15 @@ func (c *Client) Switch(ctx context.Context, index int) error {
 	return resp.Err()
 }
 
+// Wait waits for a duration or for an element to appear.
+func (c *Client) Wait(ctx context.Context, target string) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/wait", WaitRequest{Target: target}, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
 // Hover moves the mouse over an element without clicking.
 func (c *Client) Hover(ctx context.Context, selector string) error {
 	var resp Response

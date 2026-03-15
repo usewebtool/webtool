@@ -337,6 +337,41 @@ func (b *Browser) Hover(ctx context.Context, selector string) error {
 	return nil
 }
 
+// Wait waits for a duration or for an element to appear.
+// If the argument parses as a duration (e.g. "2s", "500ms"), it sleeps.
+// Otherwise it treats the argument as a selector and polls until the element exists.
+func (b *Browser) Wait(ctx context.Context, target string) error {
+	// Try parsing as duration first.
+	d, err := time.ParseDuration(target)
+	if err == nil {
+		select {
+		case <-time.After(d):
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	// Treat as selector — poll until element exists.
+	tab, err := b.activeTab()
+	if err != nil {
+		return err
+	}
+	page := tab.page
+
+	for {
+		_, err := resolveElementNow(ctx, page, target)
+		if err == nil {
+			return nil
+		}
+		select {
+		case <-time.After(pageSettleTick):
+		case <-ctx.Done():
+			return fmt.Errorf("timed out waiting for %q", target)
+		}
+	}
+}
+
 // translateInteractableErr converts Rod's interactability errors into our typed
 // errors with backendNodeId context for the agent. Falls back to a generic
 // fmt.Errorf if the error is not a recognized Rod interactability type.

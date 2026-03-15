@@ -84,6 +84,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /select", s.handleSelect)
 	mux.HandleFunc("POST /extract", s.handleExtract)
 	mux.HandleFunc("POST /switch", s.handleSwitch)
+	mux.HandleFunc("POST /wait", s.handleWait)
 	mux.HandleFunc("POST /upload", s.handleUpload)
 	mux.HandleFunc("POST /hover", s.handleHover)
 	mux.HandleFunc("POST /cdp", s.handleCDP)
@@ -428,6 +429,27 @@ func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 
 	if err := s.checkErr(s.browser.Switch(r.Context(), req.Index)); err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, Response{})
+}
+
+func (s *Server) handleWait(w http.ResponseWriter, r *http.Request) {
+	var req WaitRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, Response{Error: fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+	if req.Target == "" {
+		writeJSON(w, http.StatusBadRequest, Response{Error: "target is required"})
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.checkErr(s.browser.Wait(r.Context(), req.Target)); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
