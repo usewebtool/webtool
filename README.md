@@ -50,6 +50,23 @@ See [docs/usage.md](docs/usage.md) for the full command reference.
 | `WEBTOOL_HOME` | `~/.webtool` | Base directory for runtime files (socket, PID, logs) |
 | `WEBTOOL_CHROME_DATA_DIR` | OS default | Chrome user data directory for DevToolsActivePort discovery |
 
+## Security Policy
+
+Block network requests to prevent destructive operations when an agent controls the browser. Create a policy file:
+
+```yaml
+deny:
+  - method: "POST"
+```
+
+Then start the daemon with it:
+
+```bash
+webtool start -p policy.yml
+```
+
+See [docs/SECURITY.md](docs/SECURITY.md) for the full policy format.
+
 ## FAQ
 
 <details>

@@ -162,7 +162,7 @@ webtool cdp <method> [params]    # send a raw Chrome DevTools Protocol command
 | `element not stable` | Position/size still changing — wait and retry |
 | `element disabled` | Wait for it to become enabled |
 | `option not found` | Use `extract` on the select to see available options |
-| `request blocked by policy` | Check the security policy rules |
+| `request blocked by policy` | A security policy is blocking this network request. This is intentional and cannot be bypassed. Do not retry. |
 
 ## Global Flags
 
