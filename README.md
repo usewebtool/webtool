@@ -55,8 +55,18 @@ See [docs/usage.md](docs/usage.md) for the full command reference.
 Block network requests to prevent destructive operations when an agent controls the browser. Create a policy file:
 
 ```yaml
+# Read-only mode: block non-idempotent methods
 deny:
-  - method: "POST"
+  - method: "POST|PUT|DELETE|PATCH"
+```
+
+Or block all requests to specific sites. Wrap URLs in `*` wildcards to match all pages on the domain — without them, only the exact URL is blocked:
+
+```yaml
+deny:
+  - url: "*mail.google.com*"
+  - url: "*bank.example.com*"
+  - url: "*admin.example.com*"
 ```
 
 Then start the daemon with it:
