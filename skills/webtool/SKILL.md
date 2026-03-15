@@ -135,6 +135,15 @@ webtool click 330              # click the revealed button
 
 Most issues come from the page still loading JavaScript after the snapshot was taken. When something fails or an expected element is missing, **re-snapshot first** before trying anything else. The goal is to fail fast and retry — don't debug, just take a fresh snapshot.
 
+**Don't overthink failures.** `webtool` is designed for a simple retry loop, not clever recovery:
+
+- stale backendNodeId → `snapshot` again
+- expected element missing → `snapshot` again
+- click or type changed the page unexpectedly → `snapshot` again
+- page still seems busy or mid-render → `wait 2s`, then `snapshot` again
+
+Do not spend time guessing what the DOM "probably" looks like now. Treat each snapshot as disposable state. If the page changed, throw away old backendNodeIds and get a fresh view of reality.
+
 When re-snapshotting doesn't help, these commands let you bypass the accessibility tree and work with the page directly:
 
 ```bash
@@ -149,6 +158,10 @@ webtool cdp <method> [params]    # send a raw Chrome DevTools Protocol command
 **Use `html`** as a last resort when multiple re-snapshots still miss elements you expect. The accessibility tree can omit elements without accessible roles — raw HTML shows everything.
 
 **Use `cdp`** as a last resort for low-level browser control — e.g. `webtool cdp Input.insertText '{"text":"hello"}'` for canvas-based apps like Google Docs where normal `type` doesn't work.
+
+## Security Policies
+
+`webtool` can be started with a user-defined security policy via `webtool start -p policy.yml`. The policy acts like a denylist filter for outgoing request URLs and request bodies. If you see `request blocked by policy`, that is not a flaky browser error — the user started `webtool` with a policy that intentionally blocked the request. Do not keep retrying the same action. Either choose a different action or ask the user about the policy.
 
 ## Common Errors
 
