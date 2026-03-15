@@ -139,6 +139,41 @@ func TestIsAllowed_MethodOnly(t *testing.T) {
 	}
 }
 
+func TestIsAllowed_MethodRegex(t *testing.T) {
+	p := &Policy{
+		DenyList: []Rule{
+			{Method: "POST|PUT|DELETE"},
+		},
+	}
+	if err := compileRules(p.DenyList); err != nil {
+		t.Fatal(err)
+	}
+
+	// POST, PUT, DELETE should all be denied.
+	for _, method := range []string{"POST", "PUT", "DELETE", "post", "Put"} {
+		req, _ := http.NewRequest(method, "https://example.com/api", nil)
+		allowed, _, err := p.IsAllowed(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if allowed {
+			t.Fatalf("expected %s denied", method)
+		}
+	}
+
+	// GET and HEAD should be allowed.
+	for _, method := range []string{"GET", "HEAD"} {
+		req, _ := http.NewRequest(method, "https://example.com/api", nil)
+		allowed, _, err := p.IsAllowed(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !allowed {
+			t.Fatalf("expected %s allowed", method)
+		}
+	}
+}
+
 func TestIsAllowed_AllFieldsMustMatch(t *testing.T) {
 	p := &Policy{
 		DenyList: []Rule{

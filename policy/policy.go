@@ -22,13 +22,14 @@ type Policy struct {
 
 // Rule matches network requests by method, URL pattern, and body regex.
 type Rule struct {
-	Method string `mapstructure:"method"` // exact match, case-insensitive
+	Method string `mapstructure:"method"` // regex pattern, case-insensitive
 	URL    string `mapstructure:"url"`    // CDP wildcard pattern (* and ?)
 	Body   string `mapstructure:"body"`   // regex pattern
 
 	// Compiled patterns, set by Load.
-	urlRegex  *regexp.Regexp
-	bodyRegex *regexp.Regexp
+	methodRegex *regexp.Regexp
+	urlRegex    *regexp.Regexp
+	bodyRegex   *regexp.Regexp
 }
 
 // String returns a human-readable description of the rule.
@@ -79,6 +80,13 @@ func Load(path string) (*Policy, error) {
 func compileRules(rules []Rule) error {
 	for i := range rules {
 		r := &rules[i]
+		if r.Method != "" {
+			re, err := regexp.Compile("(?i)" + r.Method)
+			if err != nil {
+				return fmt.Errorf("invalid method regex %q: %w", r.Method, err)
+			}
+			r.methodRegex = re
+		}
 		if r.URL != "" {
 			pattern := proto.PatternToReg(r.URL)
 			re, err := regexp.Compile(pattern)
@@ -149,7 +157,7 @@ func (p *Policy) matchRules(rules []Rule, r *http.Request, body string) (bool, *
 	for i := range rules {
 		rule := &rules[i]
 
-		if rule.Method != "" && !strings.EqualFold(rule.Method, r.Method) {
+		if rule.methodRegex != nil && !rule.methodRegex.MatchString(r.Method) {
 			continue
 		}
 		if rule.urlRegex != nil && !rule.urlRegex.MatchString(r.URL.String()) {
