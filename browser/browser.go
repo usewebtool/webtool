@@ -2,7 +2,7 @@ package browser
 
 import (
 	"github.com/go-rod/rod"
-	"github.com/machinae/webtool/policy"
+	"github.com/usewebtool/webtool/policy"
 )
 
 // Browser holds a connection to a running Chrome instance.

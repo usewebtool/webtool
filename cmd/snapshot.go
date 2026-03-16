@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/machinae/webtool/browser"
+	"github.com/usewebtool/webtool/browser"
 	"github.com/spf13/cobra"
 )
 

@@ -1,6 +1,6 @@
 package main
 
-import "github.com/machinae/webtool/cmd"
+import "github.com/usewebtool/webtool/cmd"
 
 func main() {
 	cmd.Execute()

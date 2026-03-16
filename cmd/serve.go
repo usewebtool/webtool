@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"github.com/machinae/webtool/agent"
-	"github.com/machinae/webtool/browser"
-	"github.com/machinae/webtool/policy"
+	"github.com/usewebtool/webtool/agent"
+	"github.com/usewebtool/webtool/browser"
+	"github.com/usewebtool/webtool/policy"
 	"github.com/spf13/cobra"
 )
 

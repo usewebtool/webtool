@@ -1,4 +1,4 @@
-module github.com/machinae/webtool
+module github.com/usewebtool/webtool
 
 go 1.25.6
 

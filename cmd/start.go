@@ -3,8 +3,8 @@ package cmd
 import (
 	"path/filepath"
 
-	"github.com/machinae/webtool/agent"
-	"github.com/machinae/webtool/policy"
+	"github.com/usewebtool/webtool/agent"
+	"github.com/usewebtool/webtool/policy"
 	"github.com/spf13/cobra"
 )
 

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/machinae/webtool/browser"
+	"github.com/usewebtool/webtool/browser"
 )
 
 func TestHealthReturnsConnectError(t *testing.T) {

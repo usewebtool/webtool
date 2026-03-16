@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/machinae/webtool/agent"
+	"github.com/usewebtool/webtool/agent"
 	"github.com/spf13/cobra"
 )
 

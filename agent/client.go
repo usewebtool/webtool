@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/machinae/webtool/browser"
+	"github.com/usewebtool/webtool/browser"
 )
 
 // Client communicates with the daemon over a Unix socket.

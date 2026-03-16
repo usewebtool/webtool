@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/machinae/webtool/agent"
-	"github.com/machinae/webtool/browser"
+	"github.com/usewebtool/webtool/agent"
+	"github.com/usewebtool/webtool/browser"
 	"github.com/spf13/cobra"
 )
 

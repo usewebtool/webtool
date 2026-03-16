@@ -12,9 +12,9 @@ const DEFAULT_DIST_DIR = path.join(repoRoot, "dist");
 const DEFAULT_OUT_DIR = path.join(DEFAULT_DIST_DIR, "npm");
 const ROOT_BIN_SOURCE = path.join(__dirname, "root", "bin", "webtool.js");
 const LICENSE_SOURCE = path.join(repoRoot, "LICENSE");
-const REPOSITORY_URL = "git+https://github.com/machinae/webtool.git";
-const HOMEPAGE_URL = "https://github.com/machinae/webtool";
-const BUGS_URL = "https://github.com/machinae/webtool/issues";
+const REPOSITORY_URL = "git+https://github.com/usewebtool/webtool.git";
+const HOMEPAGE_URL = "https://github.com/usewebtool/webtool";
+const BUGS_URL = "https://github.com/usewebtool/webtool/issues";
 
 const TARGETS = [
   {
