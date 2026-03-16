@@ -32,11 +32,6 @@ func (b *Browser) Open(ctx context.Context, url string, newTab bool) error {
 		return err
 	}
 
-	// Bring the tab to the foreground so the user can see what the agent is doing.
-	if _, err := page.Context(ctx).Activate(); err != nil {
-		return fmt.Errorf("activating page: %w", err)
-	}
-
 	return nil
 }
 
@@ -55,10 +50,6 @@ func (b *Browser) openNewTab(ctx context.Context, url string) error {
 
 	if err := page.WaitLoad(); err != nil {
 		return fmt.Errorf("waiting for page load: %w", err)
-	}
-
-	if _, err := page.Activate(); err != nil {
-		return fmt.Errorf("activating new tab: %w", err)
 	}
 
 	b.getOrCreateTab(page)
@@ -114,10 +105,6 @@ func (b *Browser) Switch(ctx context.Context, index int) error {
 	}
 
 	page := pages[index-1]
-	if _, err := page.Context(ctx).Activate(); err != nil {
-		return fmt.Errorf("activating tab: %w", err)
-	}
-
 	b.getOrCreateTab(page)
 	return nil
 }
