@@ -52,6 +52,7 @@ func (b *Browser) openNewTab(ctx context.Context, url string) error {
 		return fmt.Errorf("waiting for page load: %w", err)
 	}
 
+	page.Activate()
 	b.getOrCreateTab(page)
 	return nil
 }
@@ -105,6 +106,7 @@ func (b *Browser) Switch(ctx context.Context, index int) error {
 	}
 
 	page := pages[index-1]
+	page.Context(ctx).Activate()
 	b.getOrCreateTab(page)
 	return nil
 }
