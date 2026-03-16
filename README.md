@@ -16,7 +16,7 @@ Webtool turns web pages into highly optimized token-efficient text snapshots tha
 ### 1. Install with npm (recommended)
 
 ```bash
-npm i -g webtool
+npm i -g @usewebtool/webtool
 ```
 webtool does not require Node.js, but npm is the easiest path to a cross-platform install.
 
