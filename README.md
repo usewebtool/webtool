@@ -1,13 +1,10 @@
 # webtool
 
-**Your agent hates Playwright.**
+**webtool is a fast, zero-dependency agent-first CLI that drives your Chrome browser.** 
 
-webtool is a fast, zero-dependency CLI that drives your Chrome browser. 
+webtool lets your agent connect directly to your browser using CDP. Your don't need cloud browsers, or Playwright. Just let your agent control your live browser session. webtool doesn't trigger bot detection because it is driving your real browser. **It just works**.
 
-Your logins, your extensions, your cookies. You don't need a cloud browser, Playwright, stealth browsers or captcha workarounds. Just let your agent control the browser you are already using. 
-webtool doesn't trigger bot detection because it is driving your real browser. **It just works**.
-
-Webtool turns web pages into highly optimized token-efficient text snapshots that LLMs can read, and provides simple commands to click, type, and navigate.
+Your agent gets LLM-optimized semantic snapshots, token-efficient Markdown, and simple commands to click, type, and navigate.
 
 **What about security?** It can be unsettling to give an AI agent full access to your browser. webtool has a powerful security policy engine that filters requests at the network level. Lock down the agent to specific pages or limit access with fine-grained request filtering. See [docs/SECURITY.md](docs/SECURITY.md) for details.
 
