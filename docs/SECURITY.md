@@ -10,8 +10,6 @@ Start the daemon with a policy file:
 webtool start -p policy.yml
 ```
 
-The policy is validated at startup — invalid files are rejected immediately.
-
 ## Policy File Format
 
 ```yaml
@@ -42,15 +40,15 @@ Each rule in `deny` or `allow` has three optional fields. All specified fields m
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `method` | string | HTTP method, case-insensitive. Exact match. Example: `"DELETE"`, `"POST"` |
+| `method` | string | Regular expression matched against the HTTP method, case-insensitive. Uses Go `regexp` syntax. Example: `"DELETE"`, `"POST|PUT|DELETE|PATCH"` |
 | `url` | string | URL pattern using CDP wildcards: `*` matches any characters, `?` matches a single character. Example: `"*api.example.com/sync*"` |
-| `body` | string | Regular expression matched against the request body. Uses Go `regexp` syntax. Example: `"delete\|archive"` |
+| `body` | string | Regular expression matched against the request body. Uses Go `regexp` syntax. Example: `"delete|archive"` |
 
 If a field is omitted, it matches anything. A rule with only `method: "DELETE"` blocks all DELETE requests to any URL.
 
 ### How Deny and Allow Work Together
 
-`deny` rules block requests. `allow` rules are exceptions to the deny list — they let specific requests through that would otherwise be blocked. You must have at least one `deny` rule; `allow` is only useful when a deny rule matches and you want to carve out an exception.
+`allow` rules are exceptions to `deny` rules. A request must match a deny rule to be blocked, and an allow rule overrides that block.
 
 ### URL Pattern Syntax
 
@@ -70,19 +68,16 @@ Examples:
 | `https://api.example.com/*` | `https://api.example.com/users/1` | `https://other.example.com/users/1` |
 | `https://example.com/v?/api` | `https://example.com/v2/api` | `https://example.com/v10/api` |
 
-### Body Regex
-
-Body patterns use Go regular expression syntax. Common patterns:
-
-| YAML | Matches | Notes |
-|------|---------|-------|
-| `"delete"` | Request body containing "delete" | Simple substring |
-| `"delete\|archive"` | Body containing "delete" or "archive" | Alternation |
-| `"\\baction\\b"` | Body containing the word "action" | Word boundary match. Double backslash in YAML for single backslash in regex. |
-
-Note: YAML requires double backslash (`\\`) to produce a single backslash in the regex. `"\\baction\\b"` in YAML becomes the regex `\baction\b`.
-
 ## Examples
+
+### Block All Non-Idempotent Methods
+
+```yaml
+version: "1"
+
+deny:
+  - method: "POST|PUT|DELETE|PATCH"
+```
 
 ### Block All DELETE Requests
 
