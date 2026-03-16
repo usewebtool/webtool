@@ -142,7 +142,7 @@ function buildRootPackageJson({ packageName, version, optionalDependencies }) {
     description: "A CLI for your browser.",
     ...buildCommonPackageJsonFields(),
     bin: {
-      [packageName]: "bin/webtool.js",
+      webtool: "bin/webtool.js",
     },
     files: ["bin"],
     optionalDependencies,
@@ -183,7 +183,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const distDir = path.resolve(args.dist ?? DEFAULT_DIST_DIR);
   const outDir = path.resolve(args.out ?? DEFAULT_OUT_DIR);
-  const packageName = args["package-name"] ?? "webtool";
+  const packageName = args["package-name"] ?? "@usewebtool/webtool";
 
   const metadata = await readJson(path.join(distDir, "metadata.json"));
   const artifacts = await readJson(path.join(distDir, "artifacts.json"));

@@ -4,19 +4,19 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const ROOT_PACKAGE_NAME = "webtool";
+const ROOT_PACKAGE_NAME = "@usewebtool/webtool";
 const TARGETS = {
   darwin: {
-    arm64: { packageName: "webtool-darwin-arm64", binary: "webtool" },
-    x64: { packageName: "webtool-darwin-x64", binary: "webtool" },
+    arm64: { packageName: "@usewebtool/webtool-darwin-arm64", binary: "webtool" },
+    x64: { packageName: "@usewebtool/webtool-darwin-x64", binary: "webtool" },
   },
   linux: {
-    arm64: { packageName: "webtool-linux-arm64", binary: "webtool" },
-    x64: { packageName: "webtool-linux-x64", binary: "webtool" },
+    arm64: { packageName: "@usewebtool/webtool-linux-arm64", binary: "webtool" },
+    x64: { packageName: "@usewebtool/webtool-linux-x64", binary: "webtool" },
   },
   win32: {
-    arm64: { packageName: "webtool-win32-arm64", binary: "webtool.exe" },
-    x64: { packageName: "webtool-win32-x64", binary: "webtool.exe" },
+    arm64: { packageName: "@usewebtool/webtool-win32-arm64", binary: "webtool.exe" },
+    x64: { packageName: "@usewebtool/webtool-win32-x64", binary: "webtool.exe" },
   },
 };
 
