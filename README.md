@@ -1,33 +1,74 @@
 # webtool
 
-A fast, single-binary CLI that drives your Chrome browser. No Playwright, no Node.js, no browser downloads — just a Go binary and Chrome.
+**Your agent hates Playwright.**
 
-Built for AI agent workflows. Webtool turns web pages into token-efficient text snapshots that LLMs can read, and provides simple commands to click, type, and navigate.
+webtool is a fast, zero-dependency CLI that drives your Chrome browser. 
+
+Your logins, your extensions, your cookies. You don't need a cloud browser, Playwright, stealth browsers or captcha workarounds. Just let your agent control the browser you are already using. 
+webtool doesn't trigger bot detection because it is driving your real browser. **It just works**.
+
+Webtool turns web pages into highly optimized token-efficient text snapshots that LLMs can read, and provides simple commands to click, type, and navigate.
+
+**What about security?** It can be unsettling to give an AI agent full access to your browser. webtool has a powerful security policy engine that filters requests at the network level. Lock down the agent to specific pages or limit access with fine-grained request filtering. See [docs/SECURITY.md](docs/SECURITY.md) for details.
 
 ## Install
+
+### 1. Install with npm (recommended)
+
+```bash
+npm i -g webtool
+```
+webtool does not require Node.js, but npm is the easiest path to a cross-platform install.
+
+### 2. Add the skill to your agent
+
+```bash
+npx skills add machinae/webtool
+```
+
+### Alternate install methods
+Install from source with Go:
 
 ```bash
 go install github.com/machinae/webtool@latest
 ```
 
-Or download a binary from the [releases page](https://github.com/machinae/webtool/releases).
+Or download a binary from the [releases page](https://github.com/machinae/webtool/releases) and put it somewhere in your PATH.
+
+To manually install the skill, clone the repo and copy `skills/webtool` to your agent's skills directory. For example, to install the skill into OpenClaw:
+
+```bash
+git clone https://github.com/machinae/webtool.git
+cp -r webtool/skills/webtool ~/.openclaw/skills/
+```
 
 ## Setup
 
-**Chrome 144+** is required.
+Make sure you're on the latest version of Chrome. You'll need to enable remote debugging so webtool can connect to your browser.
 
-1. Open Chrome and navigate to `chrome://inspect/#remote-debugging`
-2. Enable remote debugging for your current browser session
-3. Run any webtool command — a daemon starts automatically and connects to Chrome
-4. Chrome will show a permission dialog on the first connection — click **Accept**
+1. Open Chrome, navigate to `chrome://inspect/#remote-debugging` and enable remote debugging.
+2. Run `webtool start` to start the webtool daemon.
+3. Chrome will show a permission dialog. Click **Accept**.
 
 That's it. The daemon keeps the connection open, so you only approve once per session.
 
 To stop the daemon and close the connection run `webtool stop`.
 
-## Usage
+## Agent Usage
+
+Once you have installed the agent skill, just ask your agent to do things online.
+```
+"Open my Gmail and archive invitation emails."
+```
+
+The LLM is the brain. webtool gives your agent the "hands" it needs to interact with the web. Works in Codex, Claude Code, OpenClaw, or any other agent that supports skills.
+
+## CLI Usage
+
+You can use webtool from the command line or in shell scripts to programmatically control Chrome.
 
 ```bash
+webtool start                       # connect to Chrome
 webtool open https://example.com    # navigate to a URL
 webtool snapshot                    # text snapshot of interactive elements
 webtool click 43821                 # click an element by its ID from the snapshot
@@ -39,20 +80,12 @@ webtool tab 2                       # switch to tab 2
 webtool stop                        # close the connection 
 ```
 
-The workflow is **snapshot → action → snapshot**: take a snapshot to see what's on the page, act on an element by its ID, then snapshot again to see the result.
-
 See [docs/usage.md](docs/usage.md) for the full command reference.
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WEBTOOL_HOME` | `~/.webtool` | Base directory for runtime files (socket, PID, logs) |
-| `WEBTOOL_CHROME_DATA_DIR` | OS default | Chrome user data directory for DevToolsActivePort discovery |
 
 ## Security Policy
 
-Block network requests to prevent destructive operations when an agent controls the browser. Create a policy file:
+You can create a simple YAML security policy file to filter your agent's Chrome traffic at the network level.
+Create a policy file:
 
 ```yaml
 # Read-only mode: block non-idempotent methods
@@ -60,7 +93,7 @@ deny:
   - method: "POST|PUT|DELETE|PATCH"
 ```
 
-Or block all requests to specific sites. Wrap URLs in `*` wildcards to match all pages on the domain — without them, only the exact URL is blocked:
+Or block all requests to specific sites. Wrap URLs in `*` wildcards to match all pages on the domain.
 
 ```yaml
 deny:
@@ -77,26 +110,33 @@ webtool start -p policy.yml
 
 See [docs/SECURITY.md](docs/SECURITY.md) for the full policy format.
 
+## Snapshots
+
+Instead of feeding raw HTML or screenshots to your agent, webtool generates compact semantic snapshots. A page that would be 50k+ tokens as HTML becomes a few hundred tokens. The snapshots go beyond simple accessibility trees and create a structured map that is naturally easy for an LLM to understand.
+
+Generate a snapshot of the current tab:
+```bash
+webtool open https://mail.google.com
+webtool snapshot
+```
+
+```
+[url] https://mail.google.com/mail/u/0/#inbox
+[title] Inbox - Gmail
+
+[1] navigation "Main"
+  [2] link "Inbox" url="/mail/u/0/#inbox"
+  [3] link "Starred" url="/mail/u/0/#starred"
+  [4] link "Sent" url="/mail/u/0/#sent"
+[10] list "Messages"
+  [11] listitem "Alice Chen | Meeting tomorrow"
+    [12] checkbox "Select"
+    [13] link "Meeting tomorrow - Hey, are we still on for..."
+  [14] listitem "GitHub | New issue assigned"
+    [15] checkbox "Select"
+    [16] link "New issue assigned - You've been assigned #421..."
+```
+
 ## FAQ
 
-<details>
-<summary>Does webtool support headless mode?</summary>
-
-Webtool doesn't launch Chrome — it connects to your already-running instance. If you launch Chrome in headless mode yourself, webtool will connect to it just fine.
-
-What webtool intentionally avoids is *managing* a headless Chrome instance for you. Why? Because connecting to your real Chrome session is fundamentally better for agent workflows:
-
-- **No bot detection.** Automated Chrome instances (launched with `--remote-debugging-port` or via Playwright/Puppeteer) set `navigator.webdriver=true`, which triggers CAPTCHAs and blocks on most websites. Your normal Chrome session doesn't have this flag — webtool inherits that advantage by connecting to it rather than launching its own instance.
-- **Real logins.** Your Chrome already has your cookies, sessions, and saved passwords. No need to automate login flows or manage auth tokens.
-- **You can see what's happening.** When an agent controls your browser, you watch it work in real time. This builds trust and makes debugging trivial.
-
-If you need headless for CI or server environments, you can launch Chrome yourself with `chrome --headless --remote-debugging-port=0` and webtool will connect to it — but you'll be on your own for bot detection.
-
-</details>
-
-<details>
-<summary>How do I use webtool with a different Chrome profile?</summary>
-
-Switch profiles in Chrome's profile picker. Webtool connects to your Chrome process via a single shared connection, so it works with whichever profile is active — no configuration needed.
-
-</details>
+See [docs/FAQ.md](docs/FAQ.md).
