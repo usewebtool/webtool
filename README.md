@@ -2,7 +2,9 @@
 
 **webtool is a fast, zero-dependency agent-first CLI that drives your Chrome browser.** 
 
-webtool lets your agent connect directly to your browser using CDP. Your don't need cloud browsers, or Playwright. Just let your agent control your live browser session. webtool doesn't trigger bot detection because it is driving your real browser. **It just works**.
+webtool lets your agent connect directly to your browser using CDP. It does not require Playwright, a cloud browser, or a separate browser installation.
+
+Just let your agent control your live browser session. webtool doesn't trigger bot detection because it is driving your real browser. **It just works**.
 
 Your agent gets LLM-optimized semantic snapshots, token-efficient Markdown, and simple commands to click, type, and navigate.
 
@@ -44,12 +46,20 @@ cp -r webtool/skills/webtool ~/.openclaw/skills/
 Make sure you're on the latest version of Chrome. You'll need to enable remote debugging so webtool can connect to your browser.
 
 1. Open Chrome, navigate to `chrome://inspect/#remote-debugging` and enable remote debugging.
-2. Run `webtool start` to start the webtool daemon.
+2. Start the webtool background process:
+```bash
+webtool start
+```
 3. Chrome will show a permission dialog. Click **Accept**.
 
-That's it. The daemon keeps the connection open, so you only approve once per session.
+That's it. webtool keeps the connection open, so you only approve once per session.
 
-To stop the daemon and close the connection run `webtool stop`.
+## Stopping
+
+To stop webtool and close the connection:
+```bash
+webtool stop
+```
 
 ## Agent Usage
 
