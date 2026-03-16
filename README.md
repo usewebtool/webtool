@@ -23,22 +23,22 @@ webtool does not require Node.js, but npm is the easiest path to a cross-platfor
 ### 2. Add the skill to your agent
 
 ```bash
-npx skills add machinae/webtool
+npx skills add usewebtool/webtool
 ```
 
 ### Alternate install methods
 Install from source with Go:
 
 ```bash
-go install github.com/machinae/webtool@latest
+go install github.com/usewebtool/webtool@latest
 ```
 
-Or download a binary from the [releases page](https://github.com/machinae/webtool/releases) and put it somewhere in your PATH.
+Or download a binary from the [releases page](https://github.com/usewebtool/webtool/releases) and put it somewhere in your PATH.
 
 To manually install the skill, clone the repo and copy `skills/webtool` to your agent's skills directory. For example, to install the skill into OpenClaw:
 
 ```bash
-git clone https://github.com/machinae/webtool.git
+git clone https://github.com/usewebtool/webtool.git
 cp -r webtool/skills/webtool ~/.openclaw/skills/
 ```
 
