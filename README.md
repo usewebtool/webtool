@@ -1,5 +1,10 @@
 # webtool
 
+[![Release](https://img.shields.io/github/v/release/usewebtool/webtool?sort=semver&style=flat-square)](https://github.com/usewebtool/webtool/releases)
+[![Go Report Card](https://goreportcard.com/badge/github.com/usewebtool/webtool?style=flat-square)](https://goreportcard.com/report/github.com/usewebtool/webtool)
+[![Tests](https://img.shields.io/github/actions/workflow/status/usewebtool/webtool/ci.yml?branch=main&label=tests&style=flat-square)](https://github.com/usewebtool/webtool/actions)
+[![License](https://img.shields.io/github/license/usewebtool/webtool?style=flat-square)](LICENSE)
+
 **webtool is a fast, zero-dependency agent-first CLI that drives your Chrome browser.** 
 
 webtool lets your agent connect directly to your browser using CDP. It does not require Playwright, a cloud browser, or a separate browser installation.
