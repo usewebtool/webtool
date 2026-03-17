@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/usewebtool/webtool/agent"
 	"github.com/usewebtool/webtool/browser"
-	"github.com/spf13/cobra"
 )
 
 // client is the shared daemon client for subcommands.

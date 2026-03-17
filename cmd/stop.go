@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/usewebtool/webtool/agent"
 	"github.com/spf13/cobra"
+	"github.com/usewebtool/webtool/agent"
 )
 
 var stopCmd = &cobra.Command{

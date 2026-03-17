@@ -3,9 +3,9 @@ package cmd
 import (
 	"path/filepath"
 
+	"github.com/spf13/cobra"
 	"github.com/usewebtool/webtool/agent"
 	"github.com/usewebtool/webtool/policy"
-	"github.com/spf13/cobra"
 )
 
 var startPolicyFlag string
