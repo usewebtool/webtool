@@ -17,8 +17,8 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/machinae/webtool/cmd.Version={{ .Version }}
-      - -X github.com/machinae/webtool/cmd.Commit={{ .ShortCommit }}
+      - -X github.com/usewebtool/webtool/cmd.Version={{ .Version }}
+      - -X github.com/usewebtool/webtool/cmd.Commit={{ .ShortCommit }}
     goos:
       - linux
       - darwin
