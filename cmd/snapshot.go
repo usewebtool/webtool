@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/usewebtool/webtool/browser"
 )
@@ -34,7 +32,7 @@ Use the backendNodeId in action commands (click, type, etc).`,
 		if err != nil {
 			return err
 		}
-		fmt.Print(snapshot)
+		cmd.Print(snapshot)
 		return nil
 	},
 }

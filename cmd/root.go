@@ -11,6 +11,9 @@ import (
 	"github.com/usewebtool/webtool/browser"
 )
 
+// Subcommands must use cmd.Print/cmd.Println/cmd.Printf for output (not fmt.Print)
+// so the global output wrapper can capture and format it.
+
 // client is the shared daemon client for subcommands.
 var client *agent.Client
 

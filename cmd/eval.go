@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
 )
@@ -24,7 +23,7 @@ For multi-statement code, wrap in an IIFE:
 		if err != nil {
 			return err
 		}
-		fmt.Println(result)
+		cmd.Println(result)
 		return nil
 	},
 }

@@ -52,7 +52,7 @@ readable page content rather than an interactive element tree.`,
 		if err != nil {
 			return err
 		}
-		fmt.Println(content)
+		cmd.Println(content)
 		return nil
 	},
 }

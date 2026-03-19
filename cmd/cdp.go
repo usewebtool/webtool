@@ -39,7 +39,7 @@ Examples:
 			return err
 		}
 		if len(result) > 0 && string(result) != "null" {
-			fmt.Println(string(result))
+			cmd.Println(string(result))
 		}
 		return nil
 	},

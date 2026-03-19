@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
@@ -19,9 +17,9 @@ order you see in Chrome's tab bar. Use the index shown here with "webtool tab".`
 		}
 		for _, t := range tabs {
 			if t.Active {
-				fmt.Printf("%d %s %s [active]\n", t.Index, t.Title, t.URL)
+				cmd.Printf("%d %s %s [active]\n", t.Index, t.Title, t.URL)
 			} else {
-				fmt.Printf("%d %s %s\n", t.Index, t.Title, t.URL)
+				cmd.Printf("%d %s %s\n", t.Index, t.Title, t.URL)
 			}
 		}
 		return nil
