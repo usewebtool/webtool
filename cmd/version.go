@@ -15,6 +15,9 @@ var (
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version and build info",
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return nil // No daemon needed.
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(cmd.OutOrStdout(), "webtool %s (%s)\n", Version, Commit)
 		return nil
