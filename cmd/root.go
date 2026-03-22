@@ -85,6 +85,7 @@ func resolveDataDir() string {
 }
 
 func init() {
+	rootCmd.SetOut(os.Stdout)
 	rootCmd.PersistentFlags().DurationVar(&timeoutFlag, "timeout", 30*time.Second, "timeout for the command (e.g. 5s, 1m)")
 	rootCmd.PersistentFlags().BoolVar(&contentBoundariesFlag, "content-boundaries", false,
 		"wrap page-sourced output in nonce-tagged boundary markers")
