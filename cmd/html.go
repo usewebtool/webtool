@@ -24,7 +24,7 @@ var htmlCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cmd.Println(content)
+		cmd.Print(wrapContent(content))
 		return nil
 	},
 }

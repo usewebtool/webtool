@@ -23,7 +23,7 @@ For multi-statement code, wrap in an IIFE:
 		if err != nil {
 			return err
 		}
-		cmd.Println(result)
+		cmd.Print(wrapContent(result))
 		return nil
 	},
 }

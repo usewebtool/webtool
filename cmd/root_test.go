@@ -7,28 +7,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestFormatOutput_Empty(t *testing.T) {
-	contentBoundariesFlag = true
-	maxOutputFlag = 100
-	defer func() {
-		contentBoundariesFlag = false
-		maxOutputFlag = 0
-	}()
-
-	got := formatOutput("")
+func TestWrapContent_Empty(t *testing.T) {
+	got := wrapContent("")
 	if got != "" {
 		t.Errorf("expected empty string, got %q", got)
 	}
 }
 
-func TestFormatOutput_Boundaries(t *testing.T) {
-	contentBoundariesFlag = true
-	maxOutputFlag = 0
-	defer func() {
-		contentBoundariesFlag = false
-	}()
-
-	got := formatOutput("hello world")
+func TestWrapContent_Boundaries(t *testing.T) {
+	got := wrapContent("hello world")
 
 	if !strings.Contains(got, "---WEBTOOL_BEGIN nonce=") {
 		t.Error("missing WEBTOOL_BEGIN marker")
@@ -76,19 +63,20 @@ func TestMaxOutput_Negative(t *testing.T) {
 	}
 }
 
-func TestFormatOutput_Truncation(t *testing.T) {
-	contentBoundariesFlag = false
+func TestWrapContent_Truncation(t *testing.T) {
 	maxOutputFlag = 10
-	defer func() {
-		maxOutputFlag = 0
-	}()
+	defer func() { maxOutputFlag = 0 }()
 
-	got := formatOutput("abcdefghijklmnop")
+	got := wrapContent("abcdefghijklmnop")
 
-	if !strings.HasPrefix(got, "abcdefghij") {
+	if !strings.Contains(got, "abcdefghij") {
 		t.Errorf("expected truncated content, got %q", got)
 	}
 	if !strings.Contains(got, "[output truncated at 10 characters]") {
 		t.Error("missing truncation message")
+	}
+	// Truncated output should still have boundaries.
+	if !strings.Contains(got, "---WEBTOOL_BEGIN nonce=") {
+		t.Error("missing WEBTOOL_BEGIN marker on truncated output")
 	}
 }

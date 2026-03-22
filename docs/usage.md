@@ -34,6 +34,17 @@ Every action command automatically waits for the DOM to stabilize before returni
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--timeout` | `30s` | Timeout for the command (e.g. `5s`, `1m`) |
+| `--max-output` | `0` | Truncate page-sourced output to N characters (0 = no limit) |
+
+## Content Boundaries
+
+Commands that return page-sourced content (`snapshot`, `extract`, `html`, `eval`) automatically wrap output in nonce-tagged boundary markers to defend against prompt injection.
+
+To strip boundaries for piping:
+
+```bash
+webtool snapshot | grep -v WEBTOOL_
+```
 
 ## Selectors
 

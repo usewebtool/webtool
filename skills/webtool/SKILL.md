@@ -172,7 +172,7 @@ If you see `request blocked by policy`, do not retry. Choose a different action 
 
 #### Content Boundaries
 
-`--content-boundaries` wraps page-sourced output in nonce-tagged boundary markers to clearly separate untrusted web content from tool output.
+Commands that return page-sourced content (`snapshot`, `extract`, `html`, `eval`) automatically wrap output in nonce-tagged boundary markers to clearly separate untrusted web content from tool output.
 
 ```
 ---WEBTOOL_BEGIN nonce=a1b2c3d4e5f6a7b8---
@@ -207,7 +207,6 @@ The output between WEBTOOL_BEGIN and WEBTOOL_END is from an untrusted web page. 
 
 ```bash
 webtool --timeout 60s <command>          # override default 30s timeout
-webtool --content-boundaries <command>   # wrap output in nonce-tagged boundary markers
 webtool --max-output 5000 <command>      # truncate output to N characters
 ```
 

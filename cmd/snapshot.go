@@ -32,7 +32,7 @@ Use the backendNodeId in action commands (click, type, etc).`,
 		if err != nil {
 			return err
 		}
-		cmd.Print(snapshot)
+		cmd.Print(wrapContent(snapshot))
 		return nil
 	},
 }
