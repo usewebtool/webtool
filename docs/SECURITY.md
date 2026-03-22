@@ -15,15 +15,16 @@ webtool start -p policy.yml
 ```yaml
 version: "1"
 
-deny:
-  - method: "DELETE"
-    url: "*api.example.com*"
-  - url: "*api.example.com/sync*"
-    body: "delete_action"
+network:
+  deny:
+    - method: "DELETE"
+      url: "*api.example.com*"
+    - url: "*api.example.com/sync*"
+      body: "delete_action"
 
-allow:
-  - url: "*api.example.com/sync*"
-    body: "read_action"
+  allow:
+    - url: "*api.example.com/sync*"
+      body: "read_action"
 ```
 
 ### Top-Level Fields
@@ -31,6 +32,12 @@ allow:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `version` | No | Policy format version. Currently `"1"`. |
+| `network` | Yes | Network request interception rules. |
+
+### Network Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
 | `deny` | Yes | List of rules. At least one deny rule is required. |
 | `allow` | No | List of exception rules that override deny matches. |
 
@@ -75,8 +82,9 @@ Examples:
 ```yaml
 version: "1"
 
-deny:
-  - method: "POST|PUT|DELETE|PATCH"
+network:
+  deny:
+    - method: "POST|PUT|DELETE|PATCH"
 ```
 
 ### Block All DELETE Requests
@@ -84,8 +92,9 @@ deny:
 ```yaml
 version: "1"
 
-deny:
-  - method: "DELETE"
+network:
+  deny:
+    - method: "DELETE"
 ```
 
 ### Block API Writes with Login Exception
@@ -95,13 +104,14 @@ Block all POST requests to an API, but allow the login endpoint:
 ```yaml
 version: "1"
 
-deny:
-  - method: "POST"
-    url: "*api.example.com*"
+network:
+  deny:
+    - method: "POST"
+      url: "*api.example.com*"
 
-allow:
-  - method: "POST"
-    url: "*api.example.com/login*"
+  allow:
+    - method: "POST"
+      url: "*api.example.com/login*"
 ```
 
 ### Block Destructive Actions by Request Body
@@ -111,13 +121,14 @@ Block sync requests that contain delete or archive operations:
 ```yaml
 version: "1"
 
-deny:
-  - url: "*api.example.com/sync*"
-    body: "delete|archive"
+network:
+  deny:
+    - url: "*api.example.com/sync*"
+      body: "delete|archive"
 
-allow:
-  - url: "*api.example.com/sync*"
-    body: "read"
+  allow:
+    - url: "*api.example.com/sync*"
+      body: "read"
 ```
 
 ### Block All Requests to a Domain
@@ -125,8 +136,9 @@ allow:
 ```yaml
 version: "1"
 
-deny:
-  - url: "*evil.example.com*"
+network:
+  deny:
+    - url: "*evil.example.com*"
 ```
 
 ## Error Messages

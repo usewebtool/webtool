@@ -9,7 +9,7 @@ import (
 )
 
 func TestIsAllowed_AllowExceptionOverridesDeny(t *testing.T) {
-	p := &Policy{
+	np := &NetworkPolicy{
 		DenyList: []Rule{
 			{Method: "POST", URL: "*api.example.com*"},
 		},
@@ -17,16 +17,16 @@ func TestIsAllowed_AllowExceptionOverridesDeny(t *testing.T) {
 			{Method: "POST", URL: "*api.example.com/login*"},
 		},
 	}
-	if err := compileRules(p.DenyList); err != nil {
+	if err := compileRules(np.DenyList); err != nil {
 		t.Fatal(err)
 	}
-	if err := compileRules(p.AllowList); err != nil {
+	if err := compileRules(np.AllowList); err != nil {
 		t.Fatal(err)
 	}
 
 	// Login endpoint matches allow exception — allowed.
 	req, _ := http.NewRequest("POST", "https://api.example.com/login", nil)
-	allowed, rule, err := p.IsAllowed(req)
+	allowed, rule, err := np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestIsAllowed_AllowExceptionOverridesDeny(t *testing.T) {
 
 	// Other endpoint matches deny but no allow exception — denied.
 	req, _ = http.NewRequest("POST", "https://api.example.com/users/delete", nil)
-	allowed, rule, err = p.IsAllowed(req)
+	allowed, rule, err = np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,17 +52,17 @@ func TestIsAllowed_AllowExceptionOverridesDeny(t *testing.T) {
 }
 
 func TestIsAllowed_DenyWithNoException(t *testing.T) {
-	p := &Policy{
+	np := &NetworkPolicy{
 		DenyList: []Rule{
 			{Method: "DELETE", URL: "*api.example.com*"},
 		},
 	}
-	if err := compileRules(p.DenyList); err != nil {
+	if err := compileRules(np.DenyList); err != nil {
 		t.Fatal(err)
 	}
 
 	req, _ := http.NewRequest("DELETE", "https://api.example.com/users/1", nil)
-	allowed, rule, err := p.IsAllowed(req)
+	allowed, rule, err := np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,18 +78,18 @@ func TestIsAllowed_DenyWithNoException(t *testing.T) {
 }
 
 func TestIsAllowed_BodyRegex(t *testing.T) {
-	p := &Policy{
+	np := &NetworkPolicy{
 		DenyList: []Rule{
 			{URL: "*api.example.com/sync*", Body: `danger`},
 		},
 	}
-	if err := compileRules(p.DenyList); err != nil {
+	if err := compileRules(np.DenyList); err != nil {
 		t.Fatal(err)
 	}
 
 	// Request with matching body — should be denied.
 	req, _ := http.NewRequest("POST", "https://api.example.com/sync/data", strings.NewReader("do something danger here"))
-	allowed, _, err := p.IsAllowed(req)
+	allowed, _, err := np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestIsAllowed_BodyRegex(t *testing.T) {
 
 	// Request without matching body — should be allowed.
 	req, _ = http.NewRequest("POST", "https://api.example.com/sync/data", strings.NewReader("safe content"))
-	allowed, _, err = p.IsAllowed(req)
+	allowed, _, err = np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,18 +109,18 @@ func TestIsAllowed_BodyRegex(t *testing.T) {
 }
 
 func TestIsAllowed_MethodOnly(t *testing.T) {
-	p := &Policy{
+	np := &NetworkPolicy{
 		DenyList: []Rule{
 			{Method: "delete"},
 		},
 	}
-	if err := compileRules(p.DenyList); err != nil {
+	if err := compileRules(np.DenyList); err != nil {
 		t.Fatal(err)
 	}
 
 	// DELETE should be denied (case-insensitive).
 	req, _ := http.NewRequest("DELETE", "https://anything.com/whatever", nil)
-	allowed, _, err := p.IsAllowed(req)
+	allowed, _, err := np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestIsAllowed_MethodOnly(t *testing.T) {
 
 	// GET should be allowed.
 	req, _ = http.NewRequest("GET", "https://anything.com/whatever", nil)
-	allowed, _, err = p.IsAllowed(req)
+	allowed, _, err = np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,19 +140,19 @@ func TestIsAllowed_MethodOnly(t *testing.T) {
 }
 
 func TestIsAllowed_MethodRegex(t *testing.T) {
-	p := &Policy{
+	np := &NetworkPolicy{
 		DenyList: []Rule{
 			{Method: "POST|PUT|DELETE"},
 		},
 	}
-	if err := compileRules(p.DenyList); err != nil {
+	if err := compileRules(np.DenyList); err != nil {
 		t.Fatal(err)
 	}
 
 	// POST, PUT, DELETE should all be denied.
 	for _, method := range []string{"POST", "PUT", "DELETE", "post", "Put"} {
 		req, _ := http.NewRequest(method, "https://example.com/api", nil)
-		allowed, _, err := p.IsAllowed(req)
+		allowed, _, err := np.IsAllowed(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -164,7 +164,7 @@ func TestIsAllowed_MethodRegex(t *testing.T) {
 	// GET and HEAD should be allowed.
 	for _, method := range []string{"GET", "HEAD"} {
 		req, _ := http.NewRequest(method, "https://example.com/api", nil)
-		allowed, _, err := p.IsAllowed(req)
+		allowed, _, err := np.IsAllowed(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -175,18 +175,18 @@ func TestIsAllowed_MethodRegex(t *testing.T) {
 }
 
 func TestIsAllowed_AllFieldsMustMatch(t *testing.T) {
-	p := &Policy{
+	np := &NetworkPolicy{
 		DenyList: []Rule{
 			{Method: "POST", URL: "*api.example.com*", Body: "dangerous"},
 		},
 	}
-	if err := compileRules(p.DenyList); err != nil {
+	if err := compileRules(np.DenyList); err != nil {
 		t.Fatal(err)
 	}
 
 	// All three match — denied.
 	req, _ := http.NewRequest("POST", "https://api.example.com/action", strings.NewReader("do something dangerous"))
-	allowed, _, err := p.IsAllowed(req)
+	allowed, _, err := np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestIsAllowed_AllFieldsMustMatch(t *testing.T) {
 
 	// Method and URL match but body doesn't — allowed.
 	req, _ = http.NewRequest("POST", "https://api.example.com/action", strings.NewReader("safe content"))
-	allowed, _, err = p.IsAllowed(req)
+	allowed, _, err = np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func TestIsAllowed_AllFieldsMustMatch(t *testing.T) {
 
 	// Wrong method — allowed.
 	req, _ = http.NewRequest("GET", "https://api.example.com/action", nil)
-	allowed, _, err = p.IsAllowed(req)
+	allowed, _, err = np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,19 +216,19 @@ func TestIsAllowed_AllFieldsMustMatch(t *testing.T) {
 }
 
 func TestIsAllowed_MultipleRulesOR(t *testing.T) {
-	p := &Policy{
+	np := &NetworkPolicy{
 		DenyList: []Rule{
 			{Method: "DELETE"},
 			{URL: "*evil.com*"},
 		},
 	}
-	if err := compileRules(p.DenyList); err != nil {
+	if err := compileRules(np.DenyList); err != nil {
 		t.Fatal(err)
 	}
 
 	// Matches first rule only — denied.
 	req, _ := http.NewRequest("DELETE", "https://safe.com/resource", nil)
-	allowed, rule, err := p.IsAllowed(req)
+	allowed, rule, err := np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func TestIsAllowed_MultipleRulesOR(t *testing.T) {
 
 	// Matches second rule only — denied.
 	req, _ = http.NewRequest("GET", "https://evil.com/steal", nil)
-	allowed, rule, err = p.IsAllowed(req)
+	allowed, rule, err = np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestIsAllowed_MultipleRulesOR(t *testing.T) {
 
 	// Matches neither — allowed.
 	req, _ = http.NewRequest("GET", "https://safe.com/resource", nil)
-	allowed, _, err = p.IsAllowed(req)
+	allowed, _, err = np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,27 +264,27 @@ func TestIsAllowed_MultipleRulesOR(t *testing.T) {
 }
 
 func TestDenyPatterns_Deduplicates(t *testing.T) {
-	p := &Policy{
+	np := &NetworkPolicy{
 		DenyList: []Rule{
 			{URL: "*api.example.com/sync*", Body: "action1"},
 			{URL: "*api.example.com/sync*", Body: "action2"},
 			{URL: "*api.example.com/delete*"},
 		},
 	}
-	patterns := p.DenyPatterns()
+	patterns := np.DenyPatterns()
 	if len(patterns) != 2 {
 		t.Fatalf("expected 2 patterns, got %d: %v", len(patterns), patterns)
 	}
 }
 
 func TestDenyPatterns_CatchAllWhenNoURL(t *testing.T) {
-	p := &Policy{
+	np := &NetworkPolicy{
 		DenyList: []Rule{
 			{URL: "*api.example.com*"},
 			{Method: "DELETE"}, // no URL
 		},
 	}
-	patterns := p.DenyPatterns()
+	patterns := np.DenyPatterns()
 	if len(patterns) != 1 || patterns[0] != "*" {
 		t.Fatalf("expected [*], got %v", patterns)
 	}
@@ -294,14 +294,15 @@ func TestLoad_ValidPolicy(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "policy.yml")
 	content := `version: "1"
-deny:
-  - method: "DELETE"
-    url: "*api.example.com*"
-  - url: "*api.example.com/sync*"
-    body: "delete_action"
-allow:
-  - url: "*api.example.com/sync*"
-    body: "read_action"
+network:
+  deny:
+    - method: "DELETE"
+      url: "*api.example.com*"
+    - url: "*api.example.com/sync*"
+      body: "delete_action"
+  allow:
+    - url: "*api.example.com/sync*"
+      body: "read_action"
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
@@ -315,22 +316,22 @@ allow:
 	if p.Version != "1" {
 		t.Errorf("version: got %q, want %q", p.Version, "1")
 	}
-	if len(p.DenyList) != 2 {
-		t.Fatalf("deny rules: got %d, want 2", len(p.DenyList))
+	if len(p.Network.DenyList) != 2 {
+		t.Fatalf("deny rules: got %d, want 2", len(p.Network.DenyList))
 	}
-	if len(p.AllowList) != 1 {
-		t.Fatalf("allow rules: got %d, want 1", len(p.AllowList))
+	if len(p.Network.AllowList) != 1 {
+		t.Fatalf("allow rules: got %d, want 1", len(p.Network.AllowList))
 	}
-	if p.DenyList[0].Method != "DELETE" {
-		t.Errorf("deny[0].Method: got %q, want %q", p.DenyList[0].Method, "DELETE")
+	if p.Network.DenyList[0].Method != "DELETE" {
+		t.Errorf("deny[0].Method: got %q, want %q", p.Network.DenyList[0].Method, "DELETE")
 	}
-	if p.DenyList[1].urlRegex == nil {
+	if p.Network.DenyList[1].urlRegex == nil {
 		t.Error("deny[1].urlRegex not compiled")
 	}
-	if p.DenyList[1].bodyRegex == nil {
+	if p.Network.DenyList[1].bodyRegex == nil {
 		t.Error("deny[1].bodyRegex not compiled")
 	}
-	if p.AllowList[0].bodyRegex == nil {
+	if p.Network.AllowList[0].bodyRegex == nil {
 		t.Error("allow[0].bodyRegex not compiled")
 	}
 }
@@ -338,7 +339,7 @@ allow:
 func TestLoad_InvalidRegex(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.yml")
-	content := "deny:\n  - body: \"[\"\n"
+	content := "network:\n  deny:\n    - body: \"[\"\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -405,7 +406,7 @@ func TestCompileRules_URLPattern(t *testing.T) {
 }
 
 func TestIsAllowed_AllowExceptionByBody(t *testing.T) {
-	p := &Policy{
+	np := &NetworkPolicy{
 		DenyList: []Rule{
 			{Method: "POST", URL: "*api.example.com/sync*", Body: "delete|archive"},
 		},
@@ -413,16 +414,16 @@ func TestIsAllowed_AllowExceptionByBody(t *testing.T) {
 			{Method: "POST", URL: "*api.example.com/sync*", Body: "read"},
 		},
 	}
-	if err := compileRules(p.DenyList); err != nil {
+	if err := compileRules(np.DenyList); err != nil {
 		t.Fatal(err)
 	}
-	if err := compileRules(p.AllowList); err != nil {
+	if err := compileRules(np.AllowList); err != nil {
 		t.Fatal(err)
 	}
 
 	// Body matches deny but also matches allow exception — allowed.
 	req, _ := http.NewRequest("POST", "https://api.example.com/sync/data", strings.NewReader("read delete"))
-	allowed, rule, err := p.IsAllowed(req)
+	allowed, rule, err := np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -435,7 +436,7 @@ func TestIsAllowed_AllowExceptionByBody(t *testing.T) {
 
 	// Body matches deny only — denied.
 	req, _ = http.NewRequest("POST", "https://api.example.com/sync/data", strings.NewReader("archive stuff"))
-	allowed, rule, err = p.IsAllowed(req)
+	allowed, rule, err = np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,18 +449,18 @@ func TestIsAllowed_AllowExceptionByBody(t *testing.T) {
 }
 
 func TestIsAllowed_NilBodyWithBodyRules(t *testing.T) {
-	p := &Policy{
+	np := &NetworkPolicy{
 		DenyList: []Rule{
 			{URL: "*api.example.com*", Body: "dangerous"},
 		},
 	}
-	if err := compileRules(p.DenyList); err != nil {
+	if err := compileRules(np.DenyList); err != nil {
 		t.Fatal(err)
 	}
 
 	// Nil body — body regex won't match, so request is allowed.
 	req, _ := http.NewRequest("GET", "https://api.example.com/data", nil)
-	allowed, _, err := p.IsAllowed(req)
+	allowed, _, err := np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -493,19 +494,19 @@ func TestCompileRules_RejectsRegexInURL(t *testing.T) {
 	}
 }
 
-func TestLoad_NoDenyRules(t *testing.T) {
+func TestLoad_EmptyNetworkPolicy(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "empty.yml")
-	content := "version: \"1\"\nallow:\n  - url: \"*example.com*\"\n"
+	content := "version: \"1\"\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err := Load(path)
-	if err == nil {
-		t.Fatal("expected error for no deny rules, got nil")
+	p, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "at least one deny rule") {
-		t.Errorf("expected 'at least one deny rule' in error, got: %s", err)
+	if len(p.Network.DenyList) != 0 {
+		t.Errorf("expected empty deny list, got %d rules", len(p.Network.DenyList))
 	}
 }

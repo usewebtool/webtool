@@ -23,10 +23,10 @@ func (b *Browser) ensureHijacked(t *tab) {
 func (b *Browser) setupHijackRouter(t *tab) {
 	router := t.page.HijackRequests()
 
-	patterns := b.policy.DenyPatterns()
+	patterns := b.policy.Network.DenyPatterns()
 
 	handler := func(h *rod.Hijack) {
-		allowed, rule, err := b.policy.IsAllowed(h.Request.Req())
+		allowed, rule, err := b.policy.Network.IsAllowed(h.Request.Req())
 		if err != nil {
 			log.Printf("policy error: %v", err)
 			h.ContinueRequest(&proto.FetchContinueRequest{})

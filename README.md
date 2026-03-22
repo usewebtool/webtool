@@ -101,17 +101,19 @@ Create a policy file:
 
 ```yaml
 # Read-only mode: block non-idempotent methods
-deny:
-  - method: "POST|PUT|DELETE|PATCH"
+network:
+  deny:
+    - method: "POST|PUT|DELETE|PATCH"
 ```
 
 Or block all requests to specific sites. Wrap URLs in `*` wildcards to match all pages on the domain.
 
 ```yaml
-deny:
-  - url: "*mail.google.com*"
-  - url: "*bank.example.com*"
-  - url: "*admin.example.com*"
+network:
+  deny:
+    - url: "*mail.google.com*"
+    - url: "*bank.example.com*"
+    - url: "*admin.example.com*"
 ```
 
 Then start the daemon with it:

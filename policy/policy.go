@@ -13,9 +13,14 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Policy defines network request rules loaded from a YAML file.
+// Policy is the top-level structure loaded from a YAML policy file.
 type Policy struct {
-	Version   string `mapstructure:"version"`
+	Version string        `mapstructure:"version"`
+	Network NetworkPolicy `mapstructure:"network"`
+}
+
+// NetworkPolicy defines network request interception rules.
+type NetworkPolicy struct {
 	DenyList  []Rule `mapstructure:"deny"`
 	AllowList []Rule `mapstructure:"allow"`
 }
@@ -62,14 +67,10 @@ func Load(path string) (*Policy, error) {
 		return nil, fmt.Errorf("parsing policy file: %w", err)
 	}
 
-	if len(p.DenyList) == 0 {
-		return nil, fmt.Errorf("policy must have at least one deny rule")
-	}
-
-	if err := compileRules(p.DenyList); err != nil {
+	if err := compileRules(p.Network.DenyList); err != nil {
 		return nil, fmt.Errorf("deny rule: %w", err)
 	}
-	if err := compileRules(p.AllowList); err != nil {
+	if err := compileRules(p.Network.AllowList); err != nil {
 		return nil, fmt.Errorf("allow rule: %w", err)
 	}
 
@@ -118,13 +119,13 @@ func validateURLPattern(url string) error {
 	return nil
 }
 
-// IsAllowed checks if the request is allowed by the policy.
+// IsAllowed checks if the request is allowed by the network policy.
 // Deny rules are checked first. If a deny matches, allow rules are checked
 // as exceptions. If no allow exception is found, the request is denied.
 // Returns (false, matched deny rule, nil) if denied.
 // Returns (true, nil, nil) if allowed (no deny match).
 // Returns (true, matched allow rule, nil) if allowed by exception.
-func (p *Policy) IsAllowed(r *http.Request) (bool, *Rule, error) {
+func (p *NetworkPolicy) IsAllowed(r *http.Request) (bool, *Rule, error) {
 	// Read body once upfront if any rule needs it.
 	var body string
 	if p.needsBody() {
@@ -149,7 +150,7 @@ func (p *Policy) IsAllowed(r *http.Request) (bool, *Rule, error) {
 }
 
 // needsBody returns true if any rule has a body pattern.
-func (p *Policy) needsBody() bool {
+func (p *NetworkPolicy) needsBody() bool {
 	for i := range p.DenyList {
 		if p.DenyList[i].bodyRegex != nil {
 			return true
@@ -165,7 +166,7 @@ func (p *Policy) needsBody() bool {
 
 // matchRules checks if any rule in the list matches the request.
 // body is the pre-read request body (empty if no rules need body inspection).
-func (p *Policy) matchRules(rules []Rule, r *http.Request, body string) (bool, *Rule) {
+func (p *NetworkPolicy) matchRules(rules []Rule, r *http.Request, body string) (bool, *Rule) {
 	for i := range rules {
 		rule := &rules[i]
 
@@ -187,7 +188,7 @@ func (p *Policy) matchRules(rules []Rule, r *http.Request, body string) (bool, *
 
 // DenyPatterns returns deduplicated URL patterns from deny rules for CDP registration.
 // If any deny rule has no URL pattern, returns ["*"] (catch-all).
-func (p *Policy) DenyPatterns() []string {
+func (p *NetworkPolicy) DenyPatterns() []string {
 	seen := make(map[string]bool)
 	for _, r := range p.DenyList {
 		if r.URL == "" {
