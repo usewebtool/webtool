@@ -327,18 +327,6 @@ Switch to a tab by its 1-based index (as shown by `webtool tabs`).
 webtool tab 2
 ```
 
-### Advanced
-
-#### `cdp <method> [params-json]`
-
-Send a raw Chrome DevTools Protocol command to the active page. Use as a fallback for CDP methods not covered by dedicated commands.
-
-```bash
-webtool cdp Input.insertText '{"text": "hello"}'
-webtool cdp Page.reload
-webtool cdp DOM.getDocument
-```
-
 ### Daemon Management
 
 #### `start`

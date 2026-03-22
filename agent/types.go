@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"encoding/json"
 	"errors"
 
 	"github.com/usewebtool/webtool/browser"
@@ -107,14 +106,3 @@ type SnapshotResponse struct {
 	Snapshot string `json:"snapshot,omitempty"`
 }
 
-// CDPRequest is the request body for the /cdp endpoint.
-type CDPRequest struct {
-	Method string          `json:"method"`
-	Params json.RawMessage `json:"params,omitempty"`
-}
-
-// CDPResponse is the response for the /cdp endpoint.
-type CDPResponse struct {
-	Response
-	Result json.RawMessage `json:"result,omitempty"`
-}

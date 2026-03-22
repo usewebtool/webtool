@@ -154,14 +154,11 @@ When re-snapshotting doesn't help, these commands let you bypass the accessibili
 webtool eval "<js>"              # run JavaScript on the page
 webtool html                     # get full page HTML
 webtool html <selector>          # get HTML of a specific element
-webtool cdp <method> [params]    # send a raw Chrome DevTools Protocol command
 ```
 
 **Use `eval`** when an element won't respond to `click` or `type` — e.g. dismiss a `beforeunload` dialog (`webtool eval "window.onbeforeunload = null"`), scroll to exact coordinates, or trigger a JS handler directly.
 
 **Use `html`** as a last resort when multiple re-snapshots still miss elements you expect. The accessibility tree can omit elements without accessible roles — raw HTML shows everything.
-
-**Use `cdp`** as a last resort for low-level browser control — e.g. `webtool cdp Input.insertText '{"text":"hello"}'` for canvas-based apps like Google Docs where normal `type` doesn't work.
 
 ## Security
 
