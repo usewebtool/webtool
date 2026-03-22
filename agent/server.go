@@ -536,7 +536,7 @@ func (s *Server) checkErr(err error) error {
 	if errTab := s.browser.Err(); errTab != nil {
 		return errTab
 	}
-	return err
+	return browser.FriendlyError(err)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

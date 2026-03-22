@@ -1,7 +1,9 @@
 package browser
 
 import (
+	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -32,7 +34,7 @@ func (b *Browser) Connect() error {
 
 	rb := rod.New().ControlURL(b.WSUrl).NoDefaultDevice()
 	if err = rb.Connect(); err != nil {
-		return friendlyError(err)
+		return FriendlyError(err)
 	}
 	b.rod = rb
 
@@ -79,18 +81,24 @@ func (b *Browser) RodBrowser() *rod.Browser {
 	return b.rod
 }
 
-// friendlyError rewrites known connection errors into user-friendly messages.
+// FriendlyError rewrites known connection errors into user-friendly messages.
 // Returns nil for nil input, the original error if unrecognized.
-func friendlyError(err error) error {
+func FriendlyError(err error) error {
 	if err == nil {
 		return nil
 	}
+
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return fmt.Errorf("Chrome is not running or remote debugging is not enabled.\nStart Chrome and enable remote debugging at chrome://inspect#remote-debugging\nThen run webtool start again")
+	}
+
 	msg := err.Error()
 	switch {
 	case strings.Contains(msg, "403"):
 		return fmt.Errorf("Chrome rejected the connection. Run webtool start and click Allow in Chrome")
 	case strings.Contains(msg, "connection refused"):
-		return fmt.Errorf("Chrome is not running or remote debugging is not enabled.\nStart Chrome and enable remote debugging at chrome://inspect#remote-debugging")
+		return fmt.Errorf("Chrome is not running or remote debugging is not enabled.\nStart Chrome and enable remote debugging at chrome://inspect#remote-debugging\nThen run webtool start again")
 	default:
 		return err
 	}
@@ -101,7 +109,7 @@ func discoverWSURLFromDir(dataDir string) (string, error) {
 	portFile := filepath.Join(dataDir, "DevToolsActivePort")
 	data, err := os.ReadFile(portFile)
 	if err != nil {
-		return "", fmt.Errorf("could not find Chrome's DevToolsActivePort file.\nStart Chrome and enable remote debugging at chrome://inspect#remote-debugging")
+		return "", fmt.Errorf("could not find Chrome's DevToolsActivePort file.\nStart Chrome and enable remote debugging at chrome://inspect#remote-debugging\nThen run webtool start again")
 	}
 
 	lines := strings.SplitN(strings.TrimSpace(string(data)), "\n", 2)
