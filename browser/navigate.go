@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -10,9 +11,29 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
+// checkURL validates that the URL is safe to navigate to.
+// Only http, https, and about:blank are allowed.
+func checkURL(rawURL string) error {
+	if rawURL == "about:blank" {
+		return nil
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL %s: %w", rawURL, err)
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("URL scheme %s is not allowed: only http and https URLs are supported", parsed.Scheme)
+	}
+	return nil
+}
+
 // Open navigates the active page to the given URL.
 // If newTab is true, a new tab is created instead of navigating the current one.
 func (b *Browser) Open(ctx context.Context, url string, newTab bool) error {
+	if err := checkURL(url); err != nil {
+		return err
+	}
 	if newTab {
 		return b.openNewTab(ctx, url)
 	}
