@@ -11,10 +11,10 @@ import (
 func TestIsAllowed_AllowExceptionOverridesDeny(t *testing.T) {
 	np := &NetworkPolicy{
 		DenyList: []Rule{
-			{Method: "POST", URL: "*api.example.com*"},
+			{Method: "POST", Host: "*api.example.com"},
 		},
 		AllowList: []Rule{
-			{Method: "POST", URL: "*api.example.com/login*"},
+			{Method: "POST", Host: "*api.example.com", Path: "/login"},
 		},
 	}
 	if err := compileRules(np.DenyList); err != nil {
@@ -54,7 +54,7 @@ func TestIsAllowed_AllowExceptionOverridesDeny(t *testing.T) {
 func TestIsAllowed_DenyWithNoException(t *testing.T) {
 	np := &NetworkPolicy{
 		DenyList: []Rule{
-			{Method: "DELETE", URL: "*api.example.com*"},
+			{Method: "DELETE", Host: "*api.example.com"},
 		},
 	}
 	if err := compileRules(np.DenyList); err != nil {
@@ -80,7 +80,7 @@ func TestIsAllowed_DenyWithNoException(t *testing.T) {
 func TestIsAllowed_BodyRegex(t *testing.T) {
 	np := &NetworkPolicy{
 		DenyList: []Rule{
-			{URL: "*api.example.com/sync*", Body: `danger`},
+			{Host: "*api.example.com", Path: "/sync", Body: `danger`},
 		},
 	}
 	if err := compileRules(np.DenyList); err != nil {
@@ -104,7 +104,7 @@ func TestIsAllowed_BodyRegex(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !allowed {
-		t.Fatal("expected allowed for body without ^k")
+		t.Fatal("expected allowed for body without match")
 	}
 }
 
@@ -177,14 +177,14 @@ func TestIsAllowed_MethodRegex(t *testing.T) {
 func TestIsAllowed_AllFieldsMustMatch(t *testing.T) {
 	np := &NetworkPolicy{
 		DenyList: []Rule{
-			{Method: "POST", URL: "*api.example.com*", Body: "dangerous"},
+			{Method: "POST", Host: "*api.example.com", Body: "dangerous"},
 		},
 	}
 	if err := compileRules(np.DenyList); err != nil {
 		t.Fatal(err)
 	}
 
-	// All three match — denied.
+	// All fields match — denied.
 	req, _ := http.NewRequest("POST", "https://api.example.com/action", strings.NewReader("do something dangerous"))
 	allowed, _, err := np.IsAllowed(req)
 	if err != nil {
@@ -194,7 +194,7 @@ func TestIsAllowed_AllFieldsMustMatch(t *testing.T) {
 		t.Fatal("expected denied when all fields match")
 	}
 
-	// Method and URL match but body doesn't — allowed.
+	// Method and host match but body doesn't — allowed.
 	req, _ = http.NewRequest("POST", "https://api.example.com/action", strings.NewReader("safe content"))
 	allowed, _, err = np.IsAllowed(req)
 	if err != nil {
@@ -219,7 +219,7 @@ func TestIsAllowed_MultipleRulesOR(t *testing.T) {
 	np := &NetworkPolicy{
 		DenyList: []Rule{
 			{Method: "DELETE"},
-			{URL: "*evil.com*"},
+			{Host: "*evil.com"},
 		},
 	}
 	if err := compileRules(np.DenyList); err != nil {
@@ -248,7 +248,7 @@ func TestIsAllowed_MultipleRulesOR(t *testing.T) {
 	if allowed {
 		t.Fatal("expected denied by second rule")
 	}
-	if rule.URL != "*evil.com*" {
+	if rule.Host != "*evil.com" {
 		t.Errorf("expected second rule to match, got: %s", rule)
 	}
 
@@ -266,9 +266,9 @@ func TestIsAllowed_MultipleRulesOR(t *testing.T) {
 func TestDenyPatterns_Deduplicates(t *testing.T) {
 	np := &NetworkPolicy{
 		DenyList: []Rule{
-			{URL: "*api.example.com/sync*", Body: "action1"},
-			{URL: "*api.example.com/sync*", Body: "action2"},
-			{URL: "*api.example.com/delete*"},
+			{Host: "*api.example.com", Path: "/sync", Body: "action1"},
+			{Host: "*api.example.com", Path: "/sync", Body: "action2"},
+			{Host: "*api.example.com", Path: "/delete"},
 		},
 	}
 	patterns := np.DenyPatterns()
@@ -277,11 +277,11 @@ func TestDenyPatterns_Deduplicates(t *testing.T) {
 	}
 }
 
-func TestDenyPatterns_CatchAllWhenNoURL(t *testing.T) {
+func TestDenyPatterns_CatchAllWhenNoHost(t *testing.T) {
 	np := &NetworkPolicy{
 		DenyList: []Rule{
-			{URL: "*api.example.com*"},
-			{Method: "DELETE"}, // no URL
+			{Host: "*api.example.com"},
+			{Method: "DELETE"}, // no host
 		},
 	}
 	patterns := np.DenyPatterns()
@@ -297,11 +297,13 @@ func TestLoad_ValidPolicy(t *testing.T) {
 network:
   deny:
     - method: "DELETE"
-      url: "*api.example.com*"
-    - url: "*api.example.com/sync*"
+      host: "*api.example.com"
+    - host: "*api.example.com"
+      path: "/sync*"
       body: "delete_action"
   allow:
-    - url: "*api.example.com/sync*"
+    - host: "*api.example.com"
+      path: "/sync*"
       body: "read_action"
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
@@ -325,8 +327,11 @@ network:
 	if p.Network.DenyList[0].Method != "DELETE" {
 		t.Errorf("deny[0].Method: got %q, want %q", p.Network.DenyList[0].Method, "DELETE")
 	}
-	if p.Network.DenyList[1].urlRegex == nil {
-		t.Error("deny[1].urlRegex not compiled")
+	if p.Network.DenyList[1].hostRegex == nil {
+		t.Error("deny[1].hostRegex not compiled")
+	}
+	if p.Network.DenyList[1].pathRegex == nil {
+		t.Error("deny[1].pathRegex not compiled")
 	}
 	if p.Network.DenyList[1].bodyRegex == nil {
 		t.Error("deny[1].bodyRegex not compiled")
@@ -336,24 +341,32 @@ network:
 	}
 }
 
-func TestLoad_InvalidRegex(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "bad.yml")
-	content := "network:\n  deny:\n    - body: \"[\"\n"
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
+func TestCompileRules_InvalidRegex(t *testing.T) {
+	tests := []struct {
+		name    string
+		rule    Rule
+		errText string
+	}{
+		{"invalid path regex", Rule{Path: "["}, "invalid path regex"},
+		{"invalid query regex", Rule{Query: "["}, "invalid query regex"},
+		{"invalid body regex", Rule{Body: "["}, "invalid body regex"},
+		{"invalid method regex", Rule{Method: "["}, "invalid method regex"},
 	}
 
-	_, err := Load(path)
-	if err == nil {
-		t.Fatal("expected error for invalid regex, got nil")
-	}
-	if !strings.Contains(err.Error(), "invalid body regex") {
-		t.Errorf("expected 'invalid body regex' in error, got: %s", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := compileRules([]Rule{tt.rule})
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tt.errText) {
+				t.Errorf("expected %q in error, got: %s", tt.errText, err)
+			}
+		})
 	}
 }
 
-func TestCompileRules_URLPattern(t *testing.T) {
+func TestCompileRules_HostPattern(t *testing.T) {
 	tests := []struct {
 		name    string
 		pattern string
@@ -361,44 +374,136 @@ func TestCompileRules_URLPattern(t *testing.T) {
 		noMatch string
 	}{
 		{
-			name:    "wildcard both ends",
-			pattern: "*api.example.com/sync*",
-			match:   "https://api.example.com/sync/u/0/i/s",
-			noMatch: "https://other.example.com/path",
+			name:    "exact host",
+			pattern: "api.example.com",
+			match:   "api.example.com",
+			noMatch: "evil.com",
 		},
 		{
-			name:    "wildcard suffix only",
-			pattern: "https://api.example.com/*",
-			match:   "https://api.example.com/users/1",
-			noMatch: "https://other.example.com/users/1",
+			name:    "wildcard subdomain",
+			pattern: "*.example.com",
+			match:   "api.example.com",
+			noMatch: "example.org",
 		},
 		{
-			name:    "question mark single char",
-			pattern: "https://example.com/v?/api",
-			match:   "https://example.com/v2/api",
-			noMatch: "https://example.com/v10/api",
+			name:    "wildcard prefix",
+			pattern: "*example.com",
+			match:   "api.example.com",
+			noMatch: "example.org",
 		},
 		{
-			name:    "no wildcards exact match",
-			pattern: "https://example.com/exact",
-			match:   "https://example.com/exact",
-			noMatch: "https://example.com/exact/more",
+			name:    "host with port",
+			pattern: "api.example.com:8080",
+			match:   "api.example.com:8080",
+			noMatch: "api.example.com",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rules := []Rule{{URL: tt.pattern}}
+			rules := []Rule{{Host: tt.pattern}}
 			if err := compileRules(rules); err != nil {
 				t.Fatal(err)
 			}
-			if rules[0].urlRegex == nil {
-				t.Fatal("expected compiled url regex")
+			if rules[0].hostRegex == nil {
+				t.Fatal("expected compiled host regex")
 			}
-			if !rules[0].urlRegex.MatchString(tt.match) {
+			if !rules[0].hostRegex.MatchString(tt.match) {
 				t.Errorf("expected pattern %q to match %q", tt.pattern, tt.match)
 			}
-			if rules[0].urlRegex.MatchString(tt.noMatch) {
+			if rules[0].hostRegex.MatchString(tt.noMatch) {
+				t.Errorf("expected pattern %q not to match %q", tt.pattern, tt.noMatch)
+			}
+		})
+	}
+}
+
+func TestCompileRules_PathPattern(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		match   string
+		noMatch string
+	}{
+		{
+			name:    "exact path",
+			pattern: "^/api/users$",
+			match:   "/api/users",
+			noMatch: "/api/users/1",
+		},
+		{
+			name:    "prefix match",
+			pattern: "^/api/",
+			match:   "/api/users/1",
+			noMatch: "/other/path",
+		},
+		{
+			name:    "suffix match",
+			pattern: "/delete$",
+			match:   "/api/users/delete",
+			noMatch: "/api/users/1",
+		},
+		{
+			name:    "alternation",
+			pattern: "/(users|accounts)",
+			match:   "/api/users",
+			noMatch: "/api/settings",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rules := []Rule{{Path: tt.pattern}}
+			if err := compileRules(rules); err != nil {
+				t.Fatal(err)
+			}
+			if rules[0].pathRegex == nil {
+				t.Fatal("expected compiled path regex")
+			}
+			if !rules[0].pathRegex.MatchString(tt.match) {
+				t.Errorf("expected pattern %q to match %q", tt.pattern, tt.match)
+			}
+			if rules[0].pathRegex.MatchString(tt.noMatch) {
+				t.Errorf("expected pattern %q not to match %q", tt.pattern, tt.noMatch)
+			}
+		})
+	}
+}
+
+func TestCompileRules_QueryPattern(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		match   string
+		noMatch string
+	}{
+		{
+			name:    "exact query param",
+			pattern: "action=delete",
+			match:   "action=delete",
+			noMatch: "action=read",
+		},
+		{
+			name:    "alternation",
+			pattern: "action=(delete|archive)",
+			match:   "action=delete&id=1",
+			noMatch: "action=read",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rules := []Rule{{Query: tt.pattern}}
+			if err := compileRules(rules); err != nil {
+				t.Fatal(err)
+			}
+			if rules[0].queryRegex == nil {
+				t.Fatal("expected compiled query regex")
+			}
+			if !rules[0].queryRegex.MatchString(tt.match) {
+				t.Errorf("expected pattern %q to match %q", tt.pattern, tt.match)
+			}
+			if rules[0].queryRegex.MatchString(tt.noMatch) {
 				t.Errorf("expected pattern %q not to match %q", tt.pattern, tt.noMatch)
 			}
 		})
@@ -408,10 +513,10 @@ func TestCompileRules_URLPattern(t *testing.T) {
 func TestIsAllowed_AllowExceptionByBody(t *testing.T) {
 	np := &NetworkPolicy{
 		DenyList: []Rule{
-			{Method: "POST", URL: "*api.example.com/sync*", Body: "delete|archive"},
+			{Method: "POST", Host: "*api.example.com", Path: "/sync", Body: "delete|archive"},
 		},
 		AllowList: []Rule{
-			{Method: "POST", URL: "*api.example.com/sync*", Body: "read"},
+			{Method: "POST", Host: "*api.example.com", Path: "/sync", Body: "read"},
 		},
 	}
 	if err := compileRules(np.DenyList); err != nil {
@@ -451,7 +556,7 @@ func TestIsAllowed_AllowExceptionByBody(t *testing.T) {
 func TestIsAllowed_NilBodyWithBodyRules(t *testing.T) {
 	np := &NetworkPolicy{
 		DenyList: []Rule{
-			{URL: "*api.example.com*", Body: "dangerous"},
+			{Host: "*api.example.com", Body: "dangerous"},
 		},
 	}
 	if err := compileRules(np.DenyList); err != nil {
@@ -469,23 +574,23 @@ func TestIsAllowed_NilBodyWithBodyRules(t *testing.T) {
 	}
 }
 
-func TestCompileRules_RejectsRegexInURL(t *testing.T) {
+func TestCompileRules_RejectsRegexInHost(t *testing.T) {
 	tests := []struct {
 		name string
-		url  string
+		host string
 	}{
 		{"pipe alternation", "(mail|calendar).google.com"},
 		{"backslash escape", `mail\.google\.com`},
-		{"caret anchor", "^https://example.com"},
-		{"dollar anchor", "https://example.com$"},
+		{"caret anchor", "^api.example.com"},
+		{"dollar anchor", "api.example.com$"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rules := []Rule{{URL: tt.url}}
+			rules := []Rule{{Host: tt.host}}
 			err := compileRules(rules)
 			if err == nil {
-				t.Fatalf("expected error for URL %q, got nil", tt.url)
+				t.Fatalf("expected error for host %q, got nil", tt.host)
 			}
 			if !strings.Contains(err.Error(), "Regular expressions are not supported") {
 				t.Errorf("expected regex warning in error, got: %s", err)

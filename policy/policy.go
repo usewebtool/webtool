@@ -25,15 +25,19 @@ type NetworkPolicy struct {
 	AllowList []Rule `mapstructure:"allow"`
 }
 
-// Rule matches network requests by method, URL pattern, and body regex.
+// Rule matches network requests by method, URL component patterns, and body regex.
 type Rule struct {
 	Method string `mapstructure:"method"` // regex pattern, case-insensitive
-	URL    string `mapstructure:"url"`    // CDP wildcard pattern (* and ?)
+	Host   string `mapstructure:"host"`   // CDP wildcard pattern matched against parsed URL host
+	Path   string `mapstructure:"path"`   // regex pattern matched against parsed URL path
+	Query  string `mapstructure:"query"`  // regex pattern matched against parsed URL query
 	Body   string `mapstructure:"body"`   // regex pattern
 
 	// Compiled patterns, set by Load.
 	methodRegex *regexp.Regexp
-	urlRegex    *regexp.Regexp
+	hostRegex   *regexp.Regexp
+	pathRegex   *regexp.Regexp
+	queryRegex  *regexp.Regexp
 	bodyRegex   *regexp.Regexp
 }
 
@@ -43,8 +47,14 @@ func (r Rule) String() string {
 	if r.Method != "" {
 		parts = append(parts, "method="+r.Method)
 	}
-	if r.URL != "" {
-		parts = append(parts, "url="+r.URL)
+	if r.Host != "" {
+		parts = append(parts, "host="+r.Host)
+	}
+	if r.Path != "" {
+		parts = append(parts, "path="+r.Path)
+	}
+	if r.Query != "" {
+		parts = append(parts, "query="+r.Query)
 	}
 	if r.Body != "" {
 		parts = append(parts, "body="+r.Body)
@@ -77,7 +87,7 @@ func Load(path string) (*Policy, error) {
 	return &p, nil
 }
 
-// compileRules compiles URL and body patterns for a slice of rules.
+// compileRules compiles host, path, query, and body patterns for a slice of rules.
 func compileRules(rules []Rule) error {
 	for i := range rules {
 		r := &rules[i]
@@ -88,16 +98,29 @@ func compileRules(rules []Rule) error {
 			}
 			r.methodRegex = re
 		}
-		if r.URL != "" {
-			if err := validateURLPattern(r.URL); err != nil {
+		if r.Host != "" {
+			if err := validateHostPattern(r.Host); err != nil {
 				return err
 			}
-			pattern := proto.PatternToReg(r.URL)
-			re, err := regexp.Compile(pattern)
+			re, err := regexp.Compile(proto.PatternToReg(r.Host))
 			if err != nil {
-				return fmt.Errorf("invalid url pattern %q: %w", r.URL, err)
+				return fmt.Errorf("invalid host pattern %q: %w", r.Host, err)
 			}
-			r.urlRegex = re
+			r.hostRegex = re
+		}
+		if r.Path != "" {
+			re, err := regexp.Compile(r.Path)
+			if err != nil {
+				return fmt.Errorf("invalid path regex %q: %w", r.Path, err)
+			}
+			r.pathRegex = re
+		}
+		if r.Query != "" {
+			re, err := regexp.Compile(r.Query)
+			if err != nil {
+				return fmt.Errorf("invalid query regex %q: %w", r.Query, err)
+			}
+			r.queryRegex = re
 		}
 		if r.Body != "" {
 			re, err := regexp.Compile(r.Body)
@@ -110,11 +133,11 @@ func compileRules(rules []Rule) error {
 	return nil
 }
 
-// validateURLPattern checks for regex metacharacters that indicate the user
-// is trying to use regex instead of CDP wildcard syntax.
-func validateURLPattern(url string) error {
-	if strings.ContainsAny(url, `|\^$`) {
-		return fmt.Errorf("invalid url in policy: %q. Regular expressions are not supported in url policy rules. Only wildcard characters * and ? are supported", url)
+// validateHostPattern checks for regex metacharacters in host patterns.
+// Only applied to host — path and query can legitimately contain these characters.
+func validateHostPattern(host string) error {
+	if strings.ContainsAny(host, `|\^$`) {
+		return fmt.Errorf("invalid host pattern in policy: %q. Regular expressions are not supported. Only wildcard characters * and ? are supported", host)
 	}
 	return nil
 }
@@ -136,12 +159,16 @@ func (p *NetworkPolicy) IsAllowed(r *http.Request) (bool, *Rule, error) {
 		}
 	}
 
-	denied, denyRule := p.matchRules(p.DenyList, r, body)
+	host := r.URL.Host
+	path := r.URL.Path
+	query := r.URL.RawQuery
+
+	denied, denyRule := p.matchRules(p.DenyList, r.Method, host, path, query, body)
 	if !denied {
 		return true, nil, nil
 	}
 
-	excepted, allowRule := p.matchRules(p.AllowList, r, body)
+	excepted, allowRule := p.matchRules(p.AllowList, r.Method, host, path, query, body)
 	if excepted {
 		return true, allowRule, nil
 	}
@@ -165,15 +192,21 @@ func (p *NetworkPolicy) needsBody() bool {
 }
 
 // matchRules checks if any rule in the list matches the request.
-// body is the pre-read request body (empty if no rules need body inspection).
-func (p *NetworkPolicy) matchRules(rules []Rule, r *http.Request, body string) (bool, *Rule) {
+// Each field is matched against the corresponding parsed URL component.
+func (p *NetworkPolicy) matchRules(rules []Rule, method, host, path, query, body string) (bool, *Rule) {
 	for i := range rules {
 		rule := &rules[i]
 
-		if rule.methodRegex != nil && !rule.methodRegex.MatchString(r.Method) {
+		if rule.methodRegex != nil && !rule.methodRegex.MatchString(method) {
 			continue
 		}
-		if rule.urlRegex != nil && !rule.urlRegex.MatchString(r.URL.String()) {
+		if rule.hostRegex != nil && !rule.hostRegex.MatchString(host) {
+			continue
+		}
+		if rule.pathRegex != nil && !rule.pathRegex.MatchString(path) {
+			continue
+		}
+		if rule.queryRegex != nil && !rule.queryRegex.MatchString(query) {
 			continue
 		}
 		if rule.bodyRegex != nil && !rule.bodyRegex.MatchString(body) {
@@ -186,15 +219,16 @@ func (p *NetworkPolicy) matchRules(rules []Rule, r *http.Request, body string) (
 	return false, nil
 }
 
-// DenyPatterns returns deduplicated URL patterns from deny rules for CDP registration.
-// If any deny rule has no URL pattern, returns ["*"] (catch-all).
+// DenyPatterns returns deduplicated CDP URL patterns from deny rules for registration.
+// Constructs coarse patterns from host/path fields. If any rule has no host, returns ["*"].
 func (p *NetworkPolicy) DenyPatterns() []string {
 	seen := make(map[string]bool)
 	for _, r := range p.DenyList {
-		if r.URL == "" {
+		pattern := cdpPattern(&r)
+		if pattern == "*" {
 			return []string{"*"}
 		}
-		seen[r.URL] = true
+		seen[pattern] = true
 	}
 	patterns := make([]string, 0, len(seen))
 	for u := range seen {
@@ -202,6 +236,17 @@ func (p *NetworkPolicy) DenyPatterns() []string {
 	}
 	sort.Strings(patterns)
 	return patterns
+}
+
+// cdpPattern constructs a coarse CDP Fetch URL pattern from a rule's host and path.
+func cdpPattern(r *Rule) string {
+	if r.Host == "" {
+		return "*"
+	}
+	if r.Path != "" {
+		return "*://" + r.Host + r.Path + "*"
+	}
+	return "*://" + r.Host + "*"
 }
 
 // readBody reads the request body and returns it as a string.
