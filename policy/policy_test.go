@@ -175,17 +175,32 @@ func TestIsAllowed_MethodRegex(t *testing.T) {
 }
 
 func TestIsAllowed_AllFieldsMustMatch(t *testing.T) {
+	// Rule with all 6 fields. Every field must match for the rule to trigger.
 	np := &NetworkPolicy{
 		DenyList: []Rule{
-			{Method: "POST", Host: "*api.example.com", Body: "dangerous"},
+			{
+				Method: "POST",
+				Host:   "*api.example.com",
+				Path:   "/sync",
+				Query:  "action=delete",
+				Header: "Authorization:.*Bearer",
+				Body:   "dangerous",
+			},
 		},
 	}
 	if err := compileRules(np.DenyList); err != nil {
 		t.Fatal(err)
 	}
 
-	// All fields match — denied.
-	req, _ := http.NewRequest("POST", "https://api.example.com/action", strings.NewReader("do something dangerous"))
+	// Helper to build the fully-matching request.
+	makeReq := func() *http.Request {
+		req, _ := http.NewRequest("POST", "https://api.example.com/sync/data?action=delete", strings.NewReader("dangerous payload"))
+		req.Header.Set("Authorization", "Bearer abc123")
+		return req
+	}
+
+	// All 6 fields match — denied.
+	req := makeReq()
 	allowed, _, err := np.IsAllowed(req)
 	if err != nil {
 		t.Fatal(err)
@@ -194,24 +209,93 @@ func TestIsAllowed_AllFieldsMustMatch(t *testing.T) {
 		t.Fatal("expected denied when all fields match")
 	}
 
-	// Method and host match but body doesn't — allowed.
-	req, _ = http.NewRequest("POST", "https://api.example.com/action", strings.NewReader("safe content"))
-	allowed, _, err = np.IsAllowed(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !allowed {
-		t.Fatal("expected allowed when body doesn't match")
+	// Each field mismatch should allow the request.
+	tests := []struct {
+		name   string
+		modify func(r *http.Request) *http.Request
+	}{
+		{"wrong method", func(r *http.Request) *http.Request {
+			req, _ := http.NewRequest("GET", r.URL.String(), strings.NewReader("dangerous payload"))
+			req.Header = r.Header
+			return req
+		}},
+		{"wrong host", func(r *http.Request) *http.Request {
+			req, _ := http.NewRequest("POST", "https://evil.com/sync/data?action=delete", strings.NewReader("dangerous payload"))
+			req.Header.Set("Authorization", "Bearer abc123")
+			return req
+		}},
+		{"wrong path", func(r *http.Request) *http.Request {
+			req, _ := http.NewRequest("POST", "https://api.example.com/other?action=delete", strings.NewReader("dangerous payload"))
+			req.Header.Set("Authorization", "Bearer abc123")
+			return req
+		}},
+		{"wrong query", func(r *http.Request) *http.Request {
+			req, _ := http.NewRequest("POST", "https://api.example.com/sync/data?action=read", strings.NewReader("dangerous payload"))
+			req.Header.Set("Authorization", "Bearer abc123")
+			return req
+		}},
+		{"wrong header", func(r *http.Request) *http.Request {
+			req, _ := http.NewRequest("POST", "https://api.example.com/sync/data?action=delete", strings.NewReader("dangerous payload"))
+			req.Header.Set("Content-Type", "application/json")
+			return req
+		}},
+		{"wrong body", func(r *http.Request) *http.Request {
+			req, _ := http.NewRequest("POST", "https://api.example.com/sync/data?action=delete", strings.NewReader("safe content"))
+			req.Header.Set("Authorization", "Bearer abc123")
+			return req
+		}},
 	}
 
-	// Wrong method — allowed.
-	req, _ = http.NewRequest("GET", "https://api.example.com/action", nil)
-	allowed, _, err = np.IsAllowed(req)
-	if err != nil {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := tt.modify(makeReq())
+			allowed, _, err := np.IsAllowed(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !allowed {
+				t.Fatalf("expected allowed when %s", tt.name)
+			}
+		})
+	}
+}
+
+func TestIsAllowed_HostPathAND(t *testing.T) {
+	// Host + path must both match — the security-critical AND combination.
+	np := &NetworkPolicy{
+		DenyList: []Rule{
+			{Host: "*api.example.com", Path: "/sync"},
+		},
+	}
+	if err := compileRules(np.DenyList); err != nil {
 		t.Fatal(err)
 	}
-	if !allowed {
-		t.Fatal("expected allowed when method doesn't match")
+
+	tests := []struct {
+		name   string
+		url    string
+		denied bool
+	}{
+		{"both match", "https://api.example.com/sync/data", true},
+		{"right path wrong host", "https://evil.com/sync/data", false},
+		{"right host wrong path", "https://api.example.com/other", false},
+		{"neither match", "https://evil.com/other", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", tt.url, nil)
+			allowed, _, err := np.IsAllowed(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if allowed == tt.denied {
+				if tt.denied {
+					t.Fatal("expected denied")
+				}
+				t.Fatal("expected allowed")
+			}
+		})
 	}
 }
 
@@ -274,6 +358,30 @@ func TestDenyPatterns_Deduplicates(t *testing.T) {
 	patterns := np.DenyPatterns()
 	if len(patterns) != 2 {
 		t.Fatalf("expected 2 patterns, got %d: %v", len(patterns), patterns)
+	}
+}
+
+func TestCdpPattern(t *testing.T) {
+	tests := []struct {
+		name    string
+		rule    Rule
+		pattern string
+	}{
+		{"host and path", Rule{Host: "*api.example.com", Path: "/sync"}, "*://*api.example.com/sync*"},
+		{"host only", Rule{Host: "*api.example.com"}, "*://*api.example.com*"},
+		{"path only", Rule{Path: "/api/delete"}, "*"},
+		{"method only", Rule{Method: "DELETE"}, "*"},
+		{"no fields", Rule{}, "*"},
+		{"query only", Rule{Query: "action=delete"}, "*"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := cdpPattern(&tt.rule)
+			if got != tt.pattern {
+				t.Errorf("cdpPattern(%v) = %q, want %q", tt.rule, got, tt.pattern)
+			}
+		})
 	}
 }
 
@@ -341,6 +449,57 @@ network:
 	}
 }
 
+func TestLoad_InvalidDenyRule(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yml")
+	content := "network:\n  deny:\n    - body: \"[\"\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "deny rule:") {
+		t.Errorf("expected 'deny rule:' prefix in error, got: %s", err)
+	}
+}
+
+func TestLoad_InvalidAllowRule(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yml")
+	content := "network:\n  deny:\n    - method: \"GET\"\n  allow:\n    - body: \"[\"\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "allow rule:") {
+		t.Errorf("expected 'allow rule:' prefix in error, got: %s", err)
+	}
+}
+
+func TestLoad_InvalidHostPattern(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yml")
+	content := "network:\n  deny:\n    - host: \"(mail|calendar).google.com\"\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "Regular expressions are not supported") {
+		t.Errorf("expected regex warning in error, got: %s", err)
+	}
+}
+
 func TestCompileRules_InvalidRegex(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -349,6 +508,7 @@ func TestCompileRules_InvalidRegex(t *testing.T) {
 	}{
 		{"invalid path regex", Rule{Path: "["}, "invalid path regex"},
 		{"invalid query regex", Rule{Query: "["}, "invalid query regex"},
+		{"invalid header regex", Rule{Header: "["}, "invalid header regex"},
 		{"invalid body regex", Rule{Body: "["}, "invalid body regex"},
 		{"invalid method regex", Rule{Method: "["}, "invalid method regex"},
 	}
@@ -571,6 +731,98 @@ func TestIsAllowed_NilBodyWithBodyRules(t *testing.T) {
 	}
 	if !allowed {
 		t.Fatal("expected allowed when body is nil and body regex can't match")
+	}
+}
+
+func TestIsAllowed_BodyRegexInAllowOnly(t *testing.T) {
+	// Body regex only in allow list — needsBody must still read the body.
+	np := &NetworkPolicy{
+		DenyList: []Rule{
+			{Method: "POST"},
+		},
+		AllowList: []Rule{
+			{Method: "POST", Body: "safe"},
+		},
+	}
+	if err := compileRules(np.DenyList); err != nil {
+		t.Fatal(err)
+	}
+	if err := compileRules(np.AllowList); err != nil {
+		t.Fatal(err)
+	}
+
+	// Body matches allow exception — allowed.
+	req, _ := http.NewRequest("POST", "https://example.com/api", strings.NewReader("safe request"))
+	allowed, _, err := np.IsAllowed(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowed {
+		t.Fatal("expected allowed by body allow exception")
+	}
+
+	// Body doesn't match allow — denied.
+	req, _ = http.NewRequest("POST", "https://example.com/api", strings.NewReader("dangerous request"))
+	allowed, _, err = np.IsAllowed(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allowed {
+		t.Fatal("expected denied when body doesn't match allow exception")
+	}
+}
+
+func TestIsAllowed_EmptyBody(t *testing.T) {
+	np := &NetworkPolicy{
+		DenyList: []Rule{
+			{Host: "*api.example.com", Body: "dangerous"},
+		},
+	}
+	if err := compileRules(np.DenyList); err != nil {
+		t.Fatal(err)
+	}
+
+	// Empty string body — body regex won't match, request is allowed.
+	req, _ := http.NewRequest("POST", "https://api.example.com/data", strings.NewReader(""))
+	allowed, _, err := np.IsAllowed(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowed {
+		t.Fatal("expected allowed when body is empty and body regex can't match")
+	}
+}
+
+func TestIsAllowed_HeaderMatching(t *testing.T) {
+	np := &NetworkPolicy{
+		DenyList: []Rule{
+			{Header: "Authorization:.*Bearer"},
+		},
+	}
+	if err := compileRules(np.DenyList); err != nil {
+		t.Fatal(err)
+	}
+
+	// Request with matching header — denied.
+	req, _ := http.NewRequest("GET", "https://example.com/api", nil)
+	req.Header.Set("Authorization", "Bearer abc123")
+	allowed, _, err := np.IsAllowed(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allowed {
+		t.Fatal("expected denied for matching Authorization header")
+	}
+
+	// Request without matching header — allowed.
+	req, _ = http.NewRequest("GET", "https://example.com/api", nil)
+	req.Header.Set("Content-Type", "application/json")
+	allowed, _, err = np.IsAllowed(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowed {
+		t.Fatal("expected allowed when header doesn't match")
 	}
 }
 

@@ -31,6 +31,7 @@ type Rule struct {
 	Host   string `mapstructure:"host"`   // CDP wildcard pattern matched against parsed URL host
 	Path   string `mapstructure:"path"`   // regex pattern matched against parsed URL path
 	Query  string `mapstructure:"query"`  // regex pattern matched against parsed URL query
+	Header string `mapstructure:"header"` // regex pattern matched against serialized request headers
 	Body   string `mapstructure:"body"`   // regex pattern
 
 	// Compiled patterns, set by Load.
@@ -38,6 +39,7 @@ type Rule struct {
 	hostRegex   *regexp.Regexp
 	pathRegex   *regexp.Regexp
 	queryRegex  *regexp.Regexp
+	headerRegex *regexp.Regexp
 	bodyRegex   *regexp.Regexp
 }
 
@@ -55,6 +57,9 @@ func (r Rule) String() string {
 	}
 	if r.Query != "" {
 		parts = append(parts, "query="+r.Query)
+	}
+	if r.Header != "" {
+		parts = append(parts, "header="+r.Header)
 	}
 	if r.Body != "" {
 		parts = append(parts, "body="+r.Body)
@@ -122,6 +127,13 @@ func compileRules(rules []Rule) error {
 			}
 			r.queryRegex = re
 		}
+		if r.Header != "" {
+			re, err := regexp.Compile(r.Header)
+			if err != nil {
+				return fmt.Errorf("invalid header regex %q: %w", r.Header, err)
+			}
+			r.headerRegex = re
+		}
 		if r.Body != "" {
 			re, err := regexp.Compile(r.Body)
 			if err != nil {
@@ -142,6 +154,17 @@ func validateHostPattern(host string) error {
 	return nil
 }
 
+// checkRequest validates that the request has the fields needed for policy matching.
+func checkRequest(r *http.Request) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
+	if r.URL == nil {
+		return fmt.Errorf("request has nil URL")
+	}
+	return nil
+}
+
 // IsAllowed checks if the request is allowed by the network policy.
 // Deny rules are checked first. If a deny matches, allow rules are checked
 // as exceptions. If no allow exception is found, the request is denied.
@@ -149,6 +172,10 @@ func validateHostPattern(host string) error {
 // Returns (true, nil, nil) if allowed (no deny match).
 // Returns (true, matched allow rule, nil) if allowed by exception.
 func (p *NetworkPolicy) IsAllowed(r *http.Request) (bool, *Rule, error) {
+	if err := checkRequest(r); err != nil {
+		return false, nil, err
+	}
+
 	// Read body once upfront if any rule needs it.
 	var body string
 	if p.needsBody() {
@@ -159,16 +186,12 @@ func (p *NetworkPolicy) IsAllowed(r *http.Request) (bool, *Rule, error) {
 		}
 	}
 
-	host := r.URL.Host
-	path := r.URL.Path
-	query := r.URL.RawQuery
-
-	denied, denyRule := p.matchRules(p.DenyList, r.Method, host, path, query, body)
+	denied, denyRule := p.matchRules(p.DenyList, r, body)
 	if !denied {
 		return true, nil, nil
 	}
 
-	excepted, allowRule := p.matchRules(p.AllowList, r.Method, host, path, query, body)
+	excepted, allowRule := p.matchRules(p.AllowList, r, body)
 	if excepted {
 		return true, allowRule, nil
 	}
@@ -192,22 +215,36 @@ func (p *NetworkPolicy) needsBody() bool {
 }
 
 // matchRules checks if any rule in the list matches the request.
-// Each field is matched against the corresponding parsed URL component.
-func (p *NetworkPolicy) matchRules(rules []Rule, method, host, path, query, body string) (bool, *Rule) {
+// URL components are extracted from the parsed request URL.
+// Header serialization is deferred until a rule actually needs it.
+func (p *NetworkPolicy) matchRules(rules []Rule, r *http.Request, body string) (bool, *Rule) {
+	// Serialize headers lazily — only if a rule has a header regex.
+	var header string
+	var headerReady bool
+
 	for i := range rules {
 		rule := &rules[i]
 
-		if rule.methodRegex != nil && !rule.methodRegex.MatchString(method) {
+		if rule.methodRegex != nil && !rule.methodRegex.MatchString(r.Method) {
 			continue
 		}
-		if rule.hostRegex != nil && !rule.hostRegex.MatchString(host) {
+		if rule.hostRegex != nil && !rule.hostRegex.MatchString(r.URL.Host) {
 			continue
 		}
-		if rule.pathRegex != nil && !rule.pathRegex.MatchString(path) {
+		if rule.pathRegex != nil && !rule.pathRegex.MatchString(r.URL.Path) {
 			continue
 		}
-		if rule.queryRegex != nil && !rule.queryRegex.MatchString(query) {
+		if rule.queryRegex != nil && !rule.queryRegex.MatchString(r.URL.RawQuery) {
 			continue
+		}
+		if rule.headerRegex != nil {
+			if !headerReady {
+				header = serializeHeader(r.Header)
+				headerReady = true
+			}
+			if !rule.headerRegex.MatchString(header) {
+				continue
+			}
 		}
 		if rule.bodyRegex != nil && !rule.bodyRegex.MatchString(body) {
 			continue
@@ -247,6 +284,14 @@ func cdpPattern(r *Rule) string {
 		return "*://" + r.Host + r.Path + "*"
 	}
 	return "*://" + r.Host + "*"
+}
+
+// serializeHeader formats request headers in wire format ("Name: Value\r\n").
+// Uses http.Header.Write which outputs canonical header names.
+func serializeHeader(h http.Header) string {
+	var b strings.Builder
+	h.Write(&b)
+	return b.String()
 }
 
 // readBody reads the request body and returns it as a string.
