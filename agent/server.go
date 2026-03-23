@@ -172,7 +172,16 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 	})
 }
 
-// formatParams formats a JSON body as key=value pairs.
+// redactedKeys are request fields that may contain sensitive data (passwords,
+// JS expressions, file paths) and must not be written to the log.
+var redactedKeys = map[string]bool{
+	"text":  true, // type command — may contain passwords
+	"js":    true, // eval command — may embed tokens
+	"value": true, // select command — may contain sensitive form values
+	"files": true, // upload command — reveals file paths on disk
+}
+
+// formatParams formats a JSON body as key=value pairs, redacting sensitive fields.
 func formatParams(body []byte) string {
 	var m map[string]any
 	if json.Unmarshal(body, &m) != nil {
@@ -180,7 +189,11 @@ func formatParams(body []byte) string {
 	}
 	var parts []string
 	for k, v := range m {
-		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+		if redactedKeys[k] {
+			parts = append(parts, fmt.Sprintf("%s=[REDACTED]", k))
+		} else {
+			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+		}
 	}
 	return strings.Join(parts, " ")
 }
