@@ -101,13 +101,13 @@ func (c *Client) spawn(args ...string) error {
 		return err
 	}
 
-	if err := os.MkdirAll(c.dir, 0o755); err != nil {
+	if err := os.MkdirAll(c.dir, 0o700); err != nil {
 		return err
 	}
 
 	logPath := c.dir + "/webtool.log"
 	fmt.Fprintf(os.Stderr, "daemon started. logging to %s\n", logPath)
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
 	}

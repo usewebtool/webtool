@@ -49,7 +49,7 @@ func (s *Server) Start() error {
 		return errors.New("browser is nil")
 	}
 
-	if err := os.MkdirAll(s.dir, 0o755); err != nil {
+	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return fmt.Errorf("creating runtime dir: %w", err)
 	}
 
