@@ -24,7 +24,7 @@ var serveCmd = &cobra.Command{
 		b := browser.New().WithChromeDataDir(resolveDataDir())
 
 		if servePolicyFlag != "" {
-			p, err := policy.Load(servePolicyFlag)
+			p, err := policy.Load(cmd.Context(), servePolicyFlag)
 			if err != nil {
 				return fmt.Errorf("error in policy file: %w", err)
 			}

@@ -2,6 +2,7 @@ package policy
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -118,19 +119,32 @@ func (r Rule) String() string {
 	return strings.Join(parts, " ")
 }
 
-// Load reads and validates a policy YAML file.
-// Returns an error if the file cannot be read, parsed, or contains invalid patterns.
-func Load(path string) (*Policy, error) {
+// Load reads and validates a policy from a file path or URL.
+// If source starts with http:// or https://, it is fetched via HTTP.
+// Returns an error if the source cannot be read, parsed, or contains invalid patterns.
+func Load(ctx context.Context, source string) (*Policy, error) {
 	v := viper.New()
-	v.SetConfigFile(path)
 	v.SetConfigType("yaml")
-	if err := v.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("reading policy file: %w", err)
+
+	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
+		body, err := fetchURL(ctx, source)
+		if err != nil {
+			return nil, err
+		}
+		defer body.Close()
+		if err := v.ReadConfig(body); err != nil {
+			return nil, fmt.Errorf("reading policy: %w", err)
+		}
+	} else {
+		v.SetConfigFile(source)
+		if err := v.ReadInConfig(); err != nil {
+			return nil, fmt.Errorf("reading policy file: %w", err)
+		}
 	}
 
 	var p Policy
 	if err := v.Unmarshal(&p); err != nil {
-		return nil, fmt.Errorf("parsing policy file: %w", err)
+		return nil, fmt.Errorf("parsing policy: %w", err)
 	}
 
 	// If allow rules exist but no deny rules, insert an implicit deny-all.
@@ -381,6 +395,23 @@ func serializeHeader(h http.Header) string {
 	var b strings.Builder
 	h.Write(&b)
 	return b.String()
+}
+
+// fetchURL fetches a policy from a URL and returns the response body.
+func fetchURL(ctx context.Context, url string) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetching policy: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetching policy: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, fmt.Errorf("fetching policy: %s", resp.Status)
+	}
+	return resp.Body, nil
 }
 
 // readBody reads the request body and returns it as a string.

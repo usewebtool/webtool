@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/usewebtool/webtool/agent"
@@ -23,21 +24,25 @@ var startCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var extraArgs []string
 		if startPolicyFlag != "" {
-			abs, err := filepath.Abs(startPolicyFlag)
-			if err != nil {
-				return err
+			src := startPolicyFlag
+			if !strings.HasPrefix(src, "http://") && !strings.HasPrefix(src, "https://") {
+				abs, err := filepath.Abs(src)
+				if err != nil {
+					return err
+				}
+				src = abs
 			}
 			// Validate early so the user sees errors immediately.
-			if _, err := policy.Load(abs); err != nil {
+			if _, err := policy.Load(cmd.Context(), src); err != nil {
 				return fmt.Errorf("error in policy file: %w", err)
 			}
-			extraArgs = append(extraArgs, "--policy", abs)
+			extraArgs = append(extraArgs, "--policy", src)
 		}
 		return client.Start(cmd.Context(), extraArgs...)
 	},
 }
 
 func init() {
-	startCmd.Flags().StringVarP(&startPolicyFlag, "policy", "p", "", "path to security policy YAML file")
+	startCmd.Flags().StringVarP(&startPolicyFlag, "policy", "p", "", "path or URL to security policy YAML file")
 	rootCmd.AddCommand(startCmd)
 }

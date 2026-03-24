@@ -8,6 +8,7 @@ Start the daemon with a policy file:
 
 ```bash
 webtool start -p policy.yml
+webtool start -p https://example.com/policy.yml   # load from URL
 ```
 
 ## How It Works

@@ -1,7 +1,9 @@
 package policy
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -418,7 +420,7 @@ network:
 		t.Fatal(err)
 	}
 
-	p, err := Load(path)
+	p, err := Load(context.Background(), path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -457,7 +459,7 @@ func TestLoad_InvalidDenyRule(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := Load(path)
+	_, err := Load(context.Background(), path)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -474,7 +476,7 @@ func TestLoad_InvalidAllowRule(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := Load(path)
+	_, err := Load(context.Background(), path)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -491,7 +493,7 @@ func TestLoad_InvalidHostPattern(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := Load(path)
+	_, err := Load(context.Background(), path)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -859,7 +861,7 @@ func TestLoad_EmptyNetworkPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p, err := Load(path)
+	p, err := Load(context.Background(), path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -981,7 +983,7 @@ func TestLoad_ActionsDenyAndAllowReject(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err := Load(path)
+	_, err := Load(context.Background(), path)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -997,7 +999,7 @@ func TestLoad_ActionsUnknownAction(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err := Load(path)
+	_, err := Load(context.Background(), path)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -1013,7 +1015,7 @@ func TestLoad_ActionsLowercase(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	p, err := Load(path)
+	p, err := Load(context.Background(), path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1033,7 +1035,7 @@ func TestLoad_AllowOnlyPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p, err := Load(path)
+	p, err := Load(context.Background(), path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1069,5 +1071,41 @@ func TestLoad_AllowOnlyPolicy(t *testing.T) {
 	}
 	if allowed {
 		t.Fatal("expected denied for non-allowed host")
+	}
+}
+
+func TestLoad_FromURL(t *testing.T) {
+	body := `
+network:
+  deny:
+    - method: "POST"
+      host: "*api.example.com"
+`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	p, err := Load(context.Background(), srv.URL+"/policy.yml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(p.Network.DenyList) != 1 {
+		t.Fatalf("expected 1 deny rule, got %d", len(p.Network.DenyList))
+	}
+	if p.Network.DenyList[0].Host != "*api.example.com" {
+		t.Errorf("expected host *api.example.com, got %s", p.Network.DenyList[0].Host)
+	}
+}
+
+func TestLoad_FromURL_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	_, err := Load(context.Background(), srv.URL+"/policy.yml")
+	if err == nil {
+		t.Fatal("expected error for 404 response")
 	}
 }
