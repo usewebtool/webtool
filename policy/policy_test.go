@@ -861,12 +861,9 @@ func TestLoad_EmptyNetworkPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p, err := Load(context.Background(), path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(p.Network.DenyList) != 0 {
-		t.Errorf("expected empty deny list, got %d rules", len(p.Network.DenyList))
+	_, err := Load(context.Background(), path)
+	if err == nil {
+		t.Fatal("expected error for policy with no rules")
 	}
 }
 
