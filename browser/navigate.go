@@ -57,24 +57,31 @@ func (b *Browser) Open(ctx context.Context, url string, newTab bool) error {
 }
 
 // openNewTab creates a new tab, navigates it to the URL, and sets it as active.
+// The tab is created with about:blank first so that hijacking (policy interception)
+// is in place before any navigation requests are made.
 func (b *Browser) openNewTab(ctx context.Context, url string) error {
 	if err := b.Connect(); err != nil {
 		return err
 	}
 
-	page, err := b.rod.Page(proto.TargetCreateTarget{URL: url})
+	page, err := b.rod.Page(proto.TargetCreateTarget{URL: "about:blank"})
 	if err != nil {
 		return fmt.Errorf("creating new tab: %w", err)
 	}
 
-	page = page.Context(ctx)
+	// Set up hijacking before navigating so the policy covers the first request.
+	b.getOrCreateTab(page)
 
-	if err := page.WaitLoad(); err != nil {
-		return fmt.Errorf("waiting for page load: %w", err)
+	if err := waitPageLoad(ctx, page, func() error {
+		if err := page.Context(ctx).Navigate(url); err != nil {
+			return fmt.Errorf("navigating to %s: %w", url, err)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	page.Activate()
-	b.getOrCreateTab(page)
 	return nil
 }
 
