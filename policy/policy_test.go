@@ -905,6 +905,99 @@ func TestIsAllowed_AllowOnlyImplicitDenyAll(t *testing.T) {
 	}
 }
 
+func TestIsActionAllowed_DenyList(t *testing.T) {
+	p := &Policy{
+		Actions: ActionsPolicy{
+			DenyList: []string{"eval"},
+		},
+	}
+	if p.IsActionAllowed("eval") {
+		t.Fatal("expected eval denied")
+	}
+	if !p.IsActionAllowed("click") {
+		t.Fatal("expected click allowed")
+	}
+}
+
+func TestIsActionAllowed_AllowList(t *testing.T) {
+	p := &Policy{
+		Actions: ActionsPolicy{
+			AllowList: []string{"snapshot", "tabs"},
+		},
+	}
+	if !p.IsActionAllowed("snapshot") {
+		t.Fatal("expected snapshot allowed")
+	}
+	if !p.IsActionAllowed("tabs") {
+		t.Fatal("expected tabs allowed")
+	}
+	if p.IsActionAllowed("eval") {
+		t.Fatal("expected eval denied")
+	}
+}
+
+func TestIsActionAllowed_NoRules(t *testing.T) {
+	p := &Policy{}
+	if !p.IsActionAllowed("eval") {
+		t.Fatal("expected all actions allowed with no rules")
+	}
+}
+
+func TestIsActionAllowed_NilPolicy(t *testing.T) {
+	var p *Policy
+	if !p.IsActionAllowed("eval") {
+		t.Fatal("expected all actions allowed with nil policy")
+	}
+}
+
+func TestLoad_ActionsDenyAndAllowReject(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yml")
+	content := "actions:\n  deny:\n    - eval\n  allow:\n    - click\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "specify either deny or allow") {
+		t.Errorf("expected deny/allow conflict error, got: %s", err)
+	}
+}
+
+func TestLoad_ActionsUnknownAction(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yml")
+	content := "actions:\n  deny:\n    - fakecmd\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), `unknown action "fakecmd"`) {
+		t.Errorf("expected unknown action error, got: %s", err)
+	}
+}
+
+func TestLoad_ActionsLowercase(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yml")
+	content := "actions:\n  deny:\n    - EVAL\n    - Click\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p.Actions.DenyList[0] != "eval" || p.Actions.DenyList[1] != "click" {
+		t.Errorf("expected lowercased actions, got: %v", p.Actions.DenyList)
+	}
+}
+
 func TestLoad_AllowOnlyPolicy(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "policy.yml")

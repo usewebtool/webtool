@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -17,6 +18,43 @@ import (
 type Policy struct {
 	Version string        `mapstructure:"version"`
 	Network NetworkPolicy `mapstructure:"network"`
+	Actions ActionsPolicy `mapstructure:"actions"`
+}
+
+// ActionsPolicy defines which CLI actions are allowed or denied.
+// Only one of DenyList or AllowList may be specified.
+type ActionsPolicy struct {
+	DenyList  []string `mapstructure:"deny"`
+	AllowList []string `mapstructure:"allow"`
+}
+
+// knownActions is the set of valid action names for validation.
+// Excludes "health" and "stop" which always bypass the action policy.
+var knownActions = map[string]bool{
+	"open": true, "snapshot": true, "click": true, "type": true,
+	"key": true, "back": true, "forward": true, "reload": true,
+	"eval": true, "select": true, "extract": true, "switch": true,
+	"wait": true, "upload": true, "hover": true, "tabs": true,
+}
+
+// IsActionAllowed checks if the given action is allowed by the policy.
+// Returns true if no policy or no action rules are configured.
+func (p *Policy) IsActionAllowed(action string) bool {
+	// No policy loaded — everything is allowed.
+	if p == nil {
+		return true
+	}
+	a := p.Actions
+	// No action rules configured — everything is allowed.
+	if len(a.DenyList) == 0 && len(a.AllowList) == 0 {
+		return true
+	}
+	// Deny list: block listed actions, allow everything else.
+	if len(a.DenyList) > 0 {
+		return !slices.Contains(a.DenyList, action)
+	}
+	// Allow list: permit only listed actions, block everything else.
+	return slices.Contains(a.AllowList, action)
 }
 
 // NetworkPolicy defines network request interception rules.
@@ -98,7 +136,39 @@ func Load(path string) (*Policy, error) {
 		return nil, fmt.Errorf("allow rule: %w", err)
 	}
 
+	// Lowercase action names before validation.
+	for i, name := range p.Actions.DenyList {
+		p.Actions.DenyList[i] = strings.ToLower(name)
+	}
+	for i, name := range p.Actions.AllowList {
+		p.Actions.AllowList[i] = strings.ToLower(name)
+	}
+
+	if err := validateActions(p.Actions); err != nil {
+		return nil, err
+	}
+
 	return &p, nil
+}
+
+// validateActions checks that the actions policy is valid.
+// Returns an error if both deny and allow lists are specified,
+// or if any action name is not recognized.
+func validateActions(a ActionsPolicy) error {
+	if len(a.DenyList) > 0 && len(a.AllowList) > 0 {
+		return fmt.Errorf("actions policy: specify either deny or allow, not both")
+	}
+	for _, name := range a.DenyList {
+		if !knownActions[name] {
+			return fmt.Errorf("unknown action %q in actions deny list", name)
+		}
+	}
+	for _, name := range a.AllowList {
+		if !knownActions[name] {
+			return fmt.Errorf("unknown action %q in actions allow list", name)
+		}
+	}
+	return nil
 }
 
 // compileRules compiles host, path, query, and body patterns for a slice of rules.
