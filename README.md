@@ -106,14 +106,14 @@ network:
     - method: "POST|PUT|DELETE|PATCH"
 ```
 
-Or block all requests to specific sites. Wrap URLs in `*` wildcards to match all pages on the domain.
+Or block all requests to specific sites:
 
 ```yaml
 network:
   deny:
-    - url: "*mail.google.com*"
-    - url: "*bank.example.com*"
-    - url: "*admin.example.com*"
+    - host: "mail.google.com"
+    - host: "bank.example.com"
+    - host: "admin.example.com"
 ```
 
 Then start the daemon with it:
