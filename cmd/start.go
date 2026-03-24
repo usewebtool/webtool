@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -28,7 +29,7 @@ var startCmd = &cobra.Command{
 			}
 			// Validate early so the user sees errors immediately.
 			if _, err := policy.Load(abs); err != nil {
-				return err
+				return fmt.Errorf("error in policy file: %w", err)
 			}
 			extraArgs = append(extraArgs, "--policy", abs)
 		}

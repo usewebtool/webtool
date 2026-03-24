@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/usewebtool/webtool/agent"
 	"github.com/usewebtool/webtool/browser"
@@ -24,7 +26,7 @@ var serveCmd = &cobra.Command{
 		if servePolicyFlag != "" {
 			p, err := policy.Load(servePolicyFlag)
 			if err != nil {
-				return err
+				return fmt.Errorf("error in policy file: %w", err)
 			}
 			b.WithPolicy(p)
 		}
