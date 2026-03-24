@@ -1,6 +1,6 @@
 # Security Policy
 
-webtool supports network-level request interception via a YAML policy file. When a policy is configured, matching requests are aborted before reaching the server. This enables safe agent-driven browsing by preventing destructive operations (deleting emails, sending messages, etc.) while allowing read-only access.
+webtool supports security policies via a YAML policy file. Policies can restrict both network requests (blocking HTTP traffic at the CDP level) and CLI actions (blocking specific commands like `eval`). This enables safe agent-driven browsing by preventing destructive operations while allowing controlled access.
 
 ## Usage
 
@@ -79,6 +79,28 @@ network:
     - host: "*api.example.com"
       path: "/sync"
       body: "read"
+```
+
+## Action Restrictions
+
+Policies can also restrict which CLI actions the agent can perform. Use a **deny** list to block specific actions, or an **allow** list to permit only specific actions.
+
+### Block JavaScript Execution
+
+```yaml
+actions:
+  deny:
+    - eval
+```
+
+### Read-Only Agent
+
+```yaml
+actions:
+  allow:
+    - snapshot
+    - extract
+    - tabs
 ```
 
 ## Content Boundaries

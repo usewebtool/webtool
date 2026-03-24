@@ -6,15 +6,19 @@ Complete field reference for the webtool security policy YAML. Use this to gener
 
 ```yaml
 version: "1"        # optional
-network:             # required
+network:             # optional, network request interception rules
   deny: [...]        # optional, deny rules (implicit deny-all if omitted with allow present)
   allow: [...]       # optional, exception rules
+actions:             # optional, CLI action restrictions
+  deny: [...]        # optional, block specific actions
+  allow: [...]       # optional, allow only specific actions
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `version` | string | No | Policy schema version. Currently `"1"`. |
-| `network` | object | Yes | Network request interception rules. |
+| `network` | object | No | Network request interception rules. |
+| `actions` | object | No | CLI action restrictions. |
 
 ## Network
 
@@ -22,6 +26,24 @@ network:             # required
 |-------|------|----------|-------------|
 | `deny` | list of rules | No | Rules that block matching requests. If omitted but `allow` is present, all requests are denied by default. |
 | `allow` | list of rules | No | Exception rules that override deny matches. At least one of `deny` or `allow` is required. |
+
+## Actions
+
+Controls which CLI actions the agent can perform.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `deny` | list of strings | No | Actions to block. Everything else is allowed. |
+| `allow` | list of strings | No | Actions to allow. Everything else is blocked. |
+
+**Validation rules:**
+- Only one of `deny` or `allow` may be specified, not both.
+- Action names are case-insensitive (lowercased on load).
+- Unknown action names are rejected at load time.
+
+**Valid action names:** `open`, `snapshot`, `click`, `type`, `key`, `back`, `forward`, `reload`, `eval`, `select`, `extract`, `switch`, `wait`, `upload`, `hover`, `tabs`.
+
+`health` and `stop` always bypass the action policy.
 
 ## Rule
 
@@ -159,10 +181,46 @@ network:
       query: "action=(delete|archive)"
 ```
 
+### Block JavaScript execution
+
+```yaml
+actions:
+  deny:
+    - eval
+```
+
+### Read-only agent (observe but don't interact)
+
+```yaml
+actions:
+  allow:
+    - snapshot
+    - extract
+    - tabs
+    - scroll
+```
+
+### Combined network and action restrictions
+
+```yaml
+network:
+  allow:
+    - host: "*.example.com"
+actions:
+  deny:
+    - eval
+```
+
 ## Error Messages
 
-When a request is blocked:
+When a network request is blocked:
 
 ```
 request blocked by policy: POST https://api.example.com/sync (rule: host=*api.example.com path=/sync body=delete|archive)
+```
+
+When an action is blocked:
+
+```
+action "eval" is blocked by policy
 ```
