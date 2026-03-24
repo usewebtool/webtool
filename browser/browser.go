@@ -39,6 +39,11 @@ func (b *Browser) WithPolicy(p *policy.Policy) *Browser {
 	return b
 }
 
+// Policy returns the security policy, or nil if none is configured.
+func (b *Browser) Policy() *policy.Policy {
+	return b.policy
+}
+
 // Err returns and drains the first async error from the active tab, or nil.
 // Used by the daemon to catch policy errors that Rod's own operations surface
 // as generic failures (e.g. navigation to a blocked URL).

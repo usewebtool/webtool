@@ -89,7 +89,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /hover", s.handleHover)
 	mux.HandleFunc("POST /stop", s.handleStop)
 
-	s.srv = &http.Server{Handler: s.withLogging(mux)}
+	s.srv = &http.Server{Handler: s.withLogging(s.withActionPolicy(mux))}
 
 	// Shut down on SIGTERM/SIGINT.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
@@ -167,6 +167,26 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 			}
 		} else {
 			s.logger.Println(cmd)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// withActionPolicy rejects requests for actions blocked by the security policy.
+// Action names are derived from the URL path (e.g. /click → "click").
+// URL paths must match CLI command names and the knownActions set in policy/policy.go.
+func (s *Server) withActionPolicy(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		action := strings.TrimPrefix(r.URL.Path, "/")
+		if action == "health" || action == "stop" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if !s.browser.Policy().IsActionAllowed(action) {
+			writeJSON(w, http.StatusForbidden, Response{
+				Error: fmt.Sprintf("action %q is blocked by policy", action),
+			})
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
