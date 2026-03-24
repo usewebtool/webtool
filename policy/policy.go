@@ -64,6 +64,9 @@ func (r Rule) String() string {
 	if r.Body != "" {
 		parts = append(parts, "body="+r.Body)
 	}
+	if len(parts) == 0 {
+		return "deny all"
+	}
 	return strings.Join(parts, " ")
 }
 
