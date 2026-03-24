@@ -12,7 +12,7 @@ webtool start -p policy.yml
 
 ## How It Works
 
-Policies have **deny** rules and optional **allow** exceptions. A request must match a deny rule to be blocked. An allow rule overrides a deny match.
+Policies have **deny** rules and optional **allow** exceptions. A request must match a deny rule to be blocked. An allow rule overrides a deny match. If only **allow** rules are specified with no deny rules, all requests are implicitly denied — only requests matching an allow rule get through.
 
 Each rule can match on HTTP method, hostname, URL path, query string, headers, and request body. All specified fields must match (AND logic). Multiple rules are checked in order (OR logic — first match wins).
 
@@ -39,6 +39,17 @@ network:
   deny:
     - host: "*mail.google.com"
     - host: "*bank.example.com"
+```
+
+### Allow Only Specific Domains
+
+Only allow navigation to trusted domains — everything else is blocked:
+
+```yaml
+network:
+  allow:
+    - host: "*.example.com"
+    - host: "docs.google.com"
 ```
 
 ### Block API Writes with Login Exception

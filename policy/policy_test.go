@@ -867,3 +867,90 @@ func TestLoad_EmptyNetworkPolicy(t *testing.T) {
 		t.Errorf("expected empty deny list, got %d rules", len(p.Network.DenyList))
 	}
 }
+
+func TestIsAllowed_AllowOnlyImplicitDenyAll(t *testing.T) {
+	// Allow-only policy: no deny list, just allow rules.
+	// Should implicitly deny everything except what's allowed.
+	np := &NetworkPolicy{
+		DenyList: []Rule{{}}, // simulates the implicit catch-all deny
+		AllowList: []Rule{
+			{Host: "*example.com"},
+		},
+	}
+	if err := compileRules(np.DenyList); err != nil {
+		t.Fatal(err)
+	}
+	if err := compileRules(np.AllowList); err != nil {
+		t.Fatal(err)
+	}
+
+	// Request to allowed host — allowed.
+	req, _ := http.NewRequest("GET", "https://example.com/page", nil)
+	allowed, _, err := np.IsAllowed(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowed {
+		t.Fatal("expected allowed for matching allow rule")
+	}
+
+	// Request to non-allowed host — denied.
+	req, _ = http.NewRequest("GET", "https://evil.com/steal", nil)
+	allowed, _, err = np.IsAllowed(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allowed {
+		t.Fatal("expected denied for host not in allow list")
+	}
+}
+
+func TestLoad_AllowOnlyPolicy(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.yml")
+	content := `network:
+  allow:
+    - host: "*.example.com"
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should have synthesized a catch-all deny rule.
+	if len(p.Network.DenyList) != 1 {
+		t.Fatalf("expected 1 implicit deny rule, got %d", len(p.Network.DenyList))
+	}
+	// The implicit deny rule should have all empty fields.
+	r := p.Network.DenyList[0]
+	if r.Method != "" || r.Host != "" || r.Path != "" || r.Query != "" || r.Header != "" || r.Body != "" {
+		t.Errorf("expected empty catch-all deny rule, got: %s", r)
+	}
+
+	if len(p.Network.AllowList) != 1 {
+		t.Fatalf("expected 1 allow rule, got %d", len(p.Network.AllowList))
+	}
+
+	// Verify it works end-to-end: allowed host passes, other host denied.
+	req, _ := http.NewRequest("GET", "https://api.example.com/data", nil)
+	allowed, _, err := p.Network.IsAllowed(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowed {
+		t.Fatal("expected allowed for *.example.com")
+	}
+
+	req, _ = http.NewRequest("GET", "https://evil.com/steal", nil)
+	allowed, _, err = p.Network.IsAllowed(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allowed {
+		t.Fatal("expected denied for non-allowed host")
+	}
+}

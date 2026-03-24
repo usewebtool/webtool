@@ -7,7 +7,7 @@ Complete field reference for the webtool security policy YAML. Use this to gener
 ```yaml
 version: "1"        # optional
 network:             # required
-  deny: [...]        # required, at least one rule
+  deny: [...]        # optional, deny rules (implicit deny-all if omitted with allow present)
   allow: [...]       # optional, exception rules
 ```
 
@@ -20,8 +20,8 @@ network:             # required
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `deny` | list of rules | Yes | Rules that block matching requests. At least one required. |
-| `allow` | list of rules | No | Exception rules that override deny matches. |
+| `deny` | list of rules | No | Rules that block matching requests. If omitted but `allow` is present, all requests are denied by default. |
+| `allow` | list of rules | No | Exception rules that override deny matches. At least one of `deny` or `allow` is required. |
 
 ## Rule
 
@@ -71,9 +71,10 @@ Each field is matched against the **parsed** URL component, not the raw URL stri
 
 ## Deny/Allow Evaluation
 
-1. Check deny rules. No match -> **allowed** (default pass-through).
-2. Deny matched -> check allow rules. Match -> **allowed** (exception overrides deny).
-3. Deny matched, no allow exception -> **denied**.
+1. If no deny rules are specified but allow rules exist, requests are denied unless they match an allow rule.
+2. Check deny rules. No match -> **allowed** (default pass-through).
+3. Deny matched -> check allow rules. Match -> **allowed** (exception overrides deny).
+4. Deny matched, no allow exception -> **denied**.
 
 ## Examples
 
@@ -138,6 +139,15 @@ network:
     - method: "DELETE"
       host: "*api.example.com"
       path: "^/api/(users|accounts)"
+```
+
+### Allow only specific domains
+
+```yaml
+network:
+  allow:
+    - host: "*.example.com"
+    - host: "docs.google.com"
 ```
 
 ### Block specific query parameters

@@ -82,6 +82,12 @@ func Load(path string) (*Policy, error) {
 		return nil, fmt.Errorf("parsing policy file: %w", err)
 	}
 
+	// If allow rules exist but no deny rules, insert an implicit deny-all.
+	// An empty Rule{} matches everything (all nil regexes = no checks fail).
+	if len(p.Network.DenyList) == 0 && len(p.Network.AllowList) > 0 {
+		p.Network.DenyList = []Rule{{}}
+	}
+
 	if err := compileRules(p.Network.DenyList); err != nil {
 		return nil, fmt.Errorf("deny rule: %w", err)
 	}
