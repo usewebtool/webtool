@@ -247,7 +247,7 @@ func (c *Client) Select(ctx context.Context, selector string, value string) erro
 // Switch activates the tab at the given 1-based index.
 func (c *Client) Switch(ctx context.Context, index int) error {
 	var resp Response
-	if err := c.do(ctx, "POST", "/switch", SwitchRequest{Index: index}, &resp); err != nil {
+	if err := c.do(ctx, "POST", "/tab", SwitchRequest{Index: index}, &resp); err != nil {
 		return err
 	}
 	return resp.Err()

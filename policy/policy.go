@@ -33,7 +33,7 @@ type ActionsPolicy struct {
 var knownActions = map[string]bool{
 	"open": true, "snapshot": true, "click": true, "type": true,
 	"key": true, "back": true, "forward": true, "reload": true,
-	"eval": true, "select": true, "extract": true, "switch": true,
+	"eval": true, "select": true, "extract": true, "tab": true,
 	"wait": true, "upload": true, "hover": true, "tabs": true,
 }
 

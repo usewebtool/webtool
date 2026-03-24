@@ -72,6 +72,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("POST /open", s.handleOpen)
 	mux.HandleFunc("GET /tabs", s.handleTabs)
+	mux.HandleFunc("POST /tab", s.handleSwitch)
 	mux.HandleFunc("GET /snapshot", s.handleSnapshot)
 	mux.HandleFunc("POST /click", s.handleClick)
 	mux.HandleFunc("POST /type", s.handleType)
@@ -83,7 +84,6 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /eval", s.handleEval)
 	mux.HandleFunc("POST /select", s.handleSelect)
 	mux.HandleFunc("POST /extract", s.handleExtract)
-	mux.HandleFunc("POST /switch", s.handleSwitch)
 	mux.HandleFunc("POST /wait", s.handleWait)
 	mux.HandleFunc("POST /upload", s.handleUpload)
 	mux.HandleFunc("POST /hover", s.handleHover)
@@ -172,13 +172,23 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 	})
 }
 
+// alwaysAllowedActions are actions that bypass the action policy.
+// These are safe tab management and daemon lifecycle actions.
+var alwaysAllowedActions = map[string]bool{
+	"health":   true,
+	"stop":     true,
+	"tabs":     true,
+	"tab":      true,
+	"snapshot": true,
+}
+
 // withActionPolicy rejects requests for actions blocked by the security policy.
 // Action names are derived from the URL path (e.g. /click → "click").
 // URL paths must match CLI command names and the knownActions set in policy/policy.go.
 func (s *Server) withActionPolicy(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		action := strings.TrimPrefix(r.URL.Path, "/")
-		if action == "health" || action == "stop" {
+		if alwaysAllowedActions[action] {
 			next.ServeHTTP(w, r)
 			return
 		}
