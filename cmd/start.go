@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -33,7 +34,9 @@ var startCmd = &cobra.Command{
 				src = abs
 			}
 			// Validate early so the user sees errors immediately.
-			if _, err := policy.Load(cmd.Context(), src); err != nil {
+			ctx, cancel := context.WithTimeout(cmd.Context(), timeoutFlag)
+			defer cancel()
+			if _, err := policy.Load(ctx, src); err != nil {
 				return fmt.Errorf("error in policy file: %w", err)
 			}
 			extraArgs = append(extraArgs, "--policy", src)
