@@ -10,7 +10,7 @@ import (
 // ensureHijacked sets up request interception on a tab if a policy is configured
 // and the tab hasn't been hijacked yet.
 func (b *Browser) ensureHijacked(t *tab) {
-	if b.policy == nil || t.hijackRouter != nil {
+	if b.policy == nil || !b.policy.Network.IsEnabled() || t.hijackRouter != nil {
 		return
 	}
 	b.setupHijackRouter(t)

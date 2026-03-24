@@ -63,6 +63,16 @@ type NetworkPolicy struct {
 	AllowList []Rule `mapstructure:"allow"`
 }
 
+// IsEnabled returns true if any network rules are configured.
+func (p NetworkPolicy) IsEnabled() bool {
+	return len(p.DenyList) > 0 || len(p.AllowList) > 0
+}
+
+// IsEnabled returns true if any action rules are configured.
+func (a ActionsPolicy) IsEnabled() bool {
+	return len(a.DenyList) > 0 || len(a.AllowList) > 0
+}
+
 // Rule matches network requests by method, URL component patterns, and body regex.
 type Rule struct {
 	Method string `mapstructure:"method"` // regex pattern, case-insensitive

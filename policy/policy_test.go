@@ -868,6 +868,30 @@ func TestLoad_EmptyNetworkPolicy(t *testing.T) {
 	}
 }
 
+func TestNetworkPolicy_IsEnabled(t *testing.T) {
+	if (NetworkPolicy{}).IsEnabled() {
+		t.Fatal("empty network policy should not be enabled")
+	}
+	if !(NetworkPolicy{DenyList: []Rule{{Method: "POST"}}}).IsEnabled() {
+		t.Fatal("network policy with deny rules should be enabled")
+	}
+	if !(NetworkPolicy{AllowList: []Rule{{Host: "*.example.com"}}}).IsEnabled() {
+		t.Fatal("network policy with allow rules should be enabled")
+	}
+}
+
+func TestActionsPolicy_IsEnabled(t *testing.T) {
+	if (ActionsPolicy{}).IsEnabled() {
+		t.Fatal("empty actions policy should not be enabled")
+	}
+	if !(ActionsPolicy{DenyList: []string{"eval"}}).IsEnabled() {
+		t.Fatal("actions policy with deny rules should be enabled")
+	}
+	if !(ActionsPolicy{AllowList: []string{"click"}}).IsEnabled() {
+		t.Fatal("actions policy with allow rules should be enabled")
+	}
+}
+
 func TestIsAllowed_AllowOnlyImplicitDenyAll(t *testing.T) {
 	// Allow-only policy: no deny list, just allow rules.
 	// Should implicitly deny everything except what's allowed.
