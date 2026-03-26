@@ -301,6 +301,202 @@ func TestIsAllowed_HostPathAND(t *testing.T) {
 	}
 }
 
+func TestIsAllowed_RegexPath(t *testing.T) {
+	np := &NetworkPolicy{
+		DenyList: []Rule{
+			{Host: "*api.example.com", Path: "/api/(user|admin)"},
+		},
+	}
+	if err := compileRules(np.DenyList); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		url    string
+		denied bool
+	}{
+		{"user match", "https://api.example.com/api/user/profile", true},
+		{"admin match", "https://api.example.com/api/admin/settings", true},
+		{"other path", "https://api.example.com/api/public/docs", false},
+		{"different host", "https://other.com/api/user/profile", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", tt.url, nil)
+			allowed, _, err := np.IsAllowed(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if allowed == tt.denied {
+				if tt.denied {
+					t.Fatal("expected denied")
+				}
+				t.Fatal("expected allowed")
+			}
+		})
+	}
+}
+
+func TestIsAllowed_RegexQuery(t *testing.T) {
+	np := &NetworkPolicy{
+		DenyList: []Rule{
+			{Host: "*api.example.com", Query: "action=(delete|drop)"},
+		},
+	}
+	if err := compileRules(np.DenyList); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		url    string
+		denied bool
+	}{
+		{"delete match", "https://api.example.com/resource?action=delete", true},
+		{"drop match", "https://api.example.com/resource?action=drop", true},
+		{"safe action", "https://api.example.com/resource?action=read", false},
+		{"no query", "https://api.example.com/resource", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", tt.url, nil)
+			allowed, _, err := np.IsAllowed(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if allowed == tt.denied {
+				if tt.denied {
+					t.Fatal("expected denied")
+				}
+				t.Fatal("expected allowed")
+			}
+		})
+	}
+}
+
+func TestIsAllowed_RegexBody(t *testing.T) {
+	np := &NetworkPolicy{
+		DenyList: []Rule{
+			{Host: "*api.example.com", Body: `"action"\s*:\s*"(delete|archive)"`},
+		},
+	}
+	if err := compileRules(np.DenyList); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		body   string
+		denied bool
+	}{
+		{"delete match", `{"action": "delete", "id": 1}`, true},
+		{"archive match", `{"action":"archive"}`, true},
+		{"safe action", `{"action": "read"}`, false},
+		{"empty body", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest("POST", "https://api.example.com/sync", strings.NewReader(tt.body))
+			allowed, _, err := np.IsAllowed(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if allowed == tt.denied {
+				if tt.denied {
+					t.Fatal("expected denied")
+				}
+				t.Fatal("expected allowed")
+			}
+		})
+	}
+}
+
+func TestIsAllowed_RegexMethod(t *testing.T) {
+	np := &NetworkPolicy{
+		DenyList: []Rule{
+			{Host: "*api.example.com", Method: "POST|PUT|DELETE|PATCH"},
+		},
+	}
+	if err := compileRules(np.DenyList); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		method string
+		denied bool
+	}{
+		{"POST", "POST", true},
+		{"PUT", "PUT", true},
+		{"DELETE", "DELETE", true},
+		{"PATCH", "PATCH", true},
+		{"GET", "GET", false},
+		{"HEAD", "HEAD", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest(tt.method, "https://api.example.com/data", nil)
+			allowed, _, err := np.IsAllowed(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if allowed == tt.denied {
+				if tt.denied {
+					t.Fatal("expected denied")
+				}
+				t.Fatal("expected allowed")
+			}
+		})
+	}
+}
+
+func TestIsAllowed_RegexHeader(t *testing.T) {
+	np := &NetworkPolicy{
+		DenyList: []Rule{
+			{Host: "*api.example.com", Header: "X-Custom-Role:\\s*(admin|superuser)"},
+		},
+	}
+	if err := compileRules(np.DenyList); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		header string
+		value  string
+		denied bool
+	}{
+		{"admin match", "X-Custom-Role", "admin", true},
+		{"superuser match", "X-Custom-Role", "superuser", true},
+		{"safe role", "X-Custom-Role", "viewer", false},
+		{"no header", "", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", "https://api.example.com/data", nil)
+			if tt.header != "" {
+				req.Header.Set(tt.header, tt.value)
+			}
+			allowed, _, err := np.IsAllowed(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if allowed == tt.denied {
+				if tt.denied {
+					t.Fatal("expected denied")
+				}
+				t.Fatal("expected allowed")
+			}
+		})
+	}
+}
+
 func TestIsAllowed_MultipleRulesOR(t *testing.T) {
 	np := &NetworkPolicy{
 		DenyList: []Rule{
@@ -354,7 +550,7 @@ func TestDenyPatterns_Deduplicates(t *testing.T) {
 		DenyList: []Rule{
 			{Host: "*api.example.com", Path: "/sync", Body: "action1"},
 			{Host: "*api.example.com", Path: "/sync", Body: "action2"},
-			{Host: "*api.example.com", Path: "/delete"},
+			{Host: "*other.example.com", Path: "/delete"},
 		},
 	}
 	patterns := np.DenyPatterns()
@@ -369,8 +565,8 @@ func TestCdpPattern(t *testing.T) {
 		rule    Rule
 		pattern string
 	}{
-		{"host and path", Rule{Host: "*api.example.com", Path: "/sync"}, "*://*api.example.com/sync*"},
-		{"host only", Rule{Host: "*api.example.com"}, "*://*api.example.com*"},
+		{"host and path", Rule{Host: "*api.example.com", Path: "/sync"}, "*://*api.example.com/*"},
+		{"host only", Rule{Host: "*api.example.com"}, "*://*api.example.com/*"},
 		{"path only", Rule{Path: "/api/delete"}, "*"},
 		{"method only", Rule{Method: "DELETE"}, "*"},
 		{"no fields", Rule{}, "*"},

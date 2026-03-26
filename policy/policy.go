@@ -382,15 +382,15 @@ func (p *NetworkPolicy) DenyPatterns() []string {
 	return patterns
 }
 
-// cdpPattern constructs a coarse CDP Fetch URL pattern from a rule's host and path.
+// cdpPattern constructs a coarse CDP Fetch URL pattern from a rule's host.
+// Only the host field is used because it's the only field that uses CDP wildcard
+// syntax. All other fields (path, query, method, etc.) are regexes and cannot
+// be safely embedded in a CDP pattern.
 func cdpPattern(r *Rule) string {
 	if r.Host == "" {
 		return "*"
 	}
-	if r.Path != "" {
-		return "*://" + r.Host + r.Path + "*"
-	}
-	return "*://" + r.Host + "*"
+	return "*://" + r.Host + "/*"
 }
 
 // serializeHeader formats request headers in wire format ("Name: Value\r\n").
