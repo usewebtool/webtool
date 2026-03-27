@@ -128,3 +128,4 @@ webtool --max-output 5000 extract
 - Policies are set at daemon startup and cannot be changed without restarting (`webtool stop && webtool start -p new-policy.yml`).
 - Body inspection reads the full request body into memory. Very large request bodies may impact performance.
 - Policy interception is scoped to the active tab. New windows opened by `window.open()` or `target="_blank"` are not intercepted until the agent switches to them.
+- WebSocket connections are not intercepted by the network policy.
