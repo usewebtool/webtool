@@ -367,7 +367,7 @@ Actionability errors are returned when an element cannot be interacted with. Eac
 |-------|---------|----------|
 | `stale node` | backendNodeId no longer in DOM (React/Vue re-render) | Run `snapshot` again |
 | `element not found` | No element matches the selector | Check selector, run `snapshot` |
-| `element not visible` | Element has no visible shape or is off-screen | Scroll or wait for it to appear |
+| `element not visible` | Element has no visible shape or is off-screen | Wait for it to appear or choose a visible element |
 | `element obscured` | Covered by overlay/modal/banner | Dismiss the covering element first |
 | `element not clickable` | `pointer-events: none` in CSS | Find an alternative element |
 | `element not stable` | Position/size still changing (animation) | Wait and retry |

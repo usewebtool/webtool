@@ -197,7 +197,6 @@ actions:
     - snapshot
     - extract
     - tabs
-    - scroll
 ```
 
 ### Combined network and action restrictions
