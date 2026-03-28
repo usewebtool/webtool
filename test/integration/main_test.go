@@ -36,6 +36,8 @@ var pages = map[string]string{
 	"/simple":     simpleHTML,
 	"/controlled": controlledHTML,
 	"/spa":        spaHTML,
+	"/extract":    extractHTML,
+	"/dynamic":    dynamicHTML,
 }
 
 func TestMain(m *testing.M) {
@@ -131,6 +133,7 @@ const controlledHTML = `<!DOCTYPE html>
 			ownerEmail: "",
 			deliveryMode: "Standard",
 			notifyTeam: false,
+			fileName: "",
 			items: [],
 			status: "Idle"
 		};
@@ -167,6 +170,9 @@ const controlledHTML = `<!DOCTYPE html>
 						"<label><input type=\"radio\" name=\"delivery-mode\" value=\"Expedite\"" + (state.deliveryMode === "Expedite" ? " checked" : "") + ">Expedite delivery</label>" +
 					"</fieldset>" +
 					"<label><input id=\"notify-team\" type=\"checkbox\"" + (state.notifyTeam ? " checked" : "") + ">Notify team</label>" +
+					"<label for=\"attachment\">Attachment</label>" +
+					"<input id=\"attachment\" type=\"file\">" +
+					"<div id=\"file-status\">" + escapeHTML(state.fileName || "No file selected") + "</div>" +
 					"<button id=\"save-btn\" " + (state.draft.trim() ? "" : "disabled") + ">Add task</button>" +
 					"<div role=\"status\" aria-live=\"polite\">" + escapeHTML(state.status) + "</div>" +
 					"<p>Preview: " + escapeHTML(summaryText()) + "</p>" +
@@ -236,6 +242,9 @@ const controlledHTML = `<!DOCTYPE html>
 			} else if (event.target.id === "notify-team") {
 				state.notifyTeam = event.target.checked;
 				state.status = state.notifyTeam ? "Notifications enabled" : "Notifications disabled";
+			} else if (event.target.id === "attachment") {
+				state.fileName = event.target.files.length > 0 ? event.target.files[0].name : "";
+				state.status = state.fileName ? "File attached: " + state.fileName : "File removed";
 			} else {
 				return;
 			}
@@ -261,6 +270,105 @@ const controlledHTML = `<!DOCTYPE html>
 		render();
 	})();
 	</script>
+</body>
+</html>`
+
+const dynamicHTML = `<!DOCTYPE html>
+<html>
+<head>
+	<title>Dynamic Test</title>
+	<meta charset="utf-8">
+	<style>
+		.card-actions { display: none; }
+		.card:hover .card-actions { display: block; }
+	</style>
+</head>
+<body>
+	<div id="app">
+		<h1>Dashboard</h1>
+
+		<!-- Delayed element: appears after 500ms (for Wait test) -->
+		<div id="notifications"></div>
+
+		<!-- Hover reveal: actions visible only on hover (for Hover test) -->
+		<div class="card" id="project-card">
+			<h2>Project Alpha</h2>
+			<p>Status: active</p>
+			<div class="card-actions">
+				<button id="archive-btn">Archive</button>
+				<button id="delete-btn">Delete</button>
+			</div>
+		</div>
+
+		<!-- Re-render section: clicking refresh destroys and recreates nodes (for Stale node test) -->
+		<div id="feed">
+			<h2>Activity Feed</h2>
+			<ul id="feed-list">
+				<li id="feed-item-1">Deploy v1.0 completed</li>
+				<li id="feed-item-2">Test suite passed</li>
+				<li id="feed-item-3">PR #42 merged</li>
+			</ul>
+			<button id="refresh-feed">Refresh Feed</button>
+		</div>
+
+		<!-- Counter: changes on interaction, resets on reload (for Reload test) -->
+		<div id="counter-section">
+			<span id="counter-value">0</span>
+			<button id="increment-btn">Increment</button>
+		</div>
+	</div>
+
+	<script>
+	(() => {
+		// Delayed notification appears after 2s — long enough that page load
+		// and waitPageSettle have already completed, so Wait must actually poll.
+		setTimeout(() => {
+			document.getElementById("notifications").innerHTML =
+				'<div id="delayed-notification" role="alert">New deployment ready</div>';
+		}, 2000);
+
+		// Refresh feed: destroys all existing list items and creates new ones.
+		document.getElementById("refresh-feed").addEventListener("click", () => {
+			const list = document.getElementById("feed-list");
+			list.innerHTML =
+				'<li id="feed-item-4">Hotfix v1.0.1 deployed</li>' +
+				'<li id="feed-item-5">Monitoring alert cleared</li>';
+		});
+
+		// Archive button (revealed on hover).
+		document.addEventListener("click", (e) => {
+			if (e.target.id === "archive-btn") {
+				const card = document.getElementById("project-card");
+				card.querySelector("p").textContent = "Status: archived";
+			}
+		});
+
+		// Counter.
+		let count = 0;
+		document.getElementById("increment-btn").addEventListener("click", () => {
+			count++;
+			document.getElementById("counter-value").textContent = String(count);
+		});
+	})();
+	</script>
+</body>
+</html>`
+
+const extractHTML = `<!DOCTYPE html>
+<html>
+<head><title>Extract Test</title><meta charset="utf-8"></head>
+<body>
+	<header><nav><a href="/home">Home</a></nav></header>
+	<main>
+		<h1>Main Heading</h1>
+		<p>This is the main content paragraph.</p>
+		<a href="https://example.com">Example Link</a>
+		<ul>
+			<li>Item one</li>
+			<li>Item two</li>
+		</ul>
+	</main>
+	<footer><p>Footer content here</p></footer>
 </body>
 </html>`
 

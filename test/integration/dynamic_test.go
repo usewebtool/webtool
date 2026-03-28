@@ -302,3 +302,52 @@ func TestTabs_TabsReflectLatestActiveTabAfterMultipleNewTabs(t *testing.T) {
 		t.Fatalf("expected controlled form after switch, got:\n%s", snap.String())
 	}
 }
+
+func TestSnapshotModes_InteractiveReturnsFewerElements(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), integrationTestTimeout)
+	defer cancel()
+
+	if err := b.Open(ctx, pageURL("/dynamic"), false); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	interactive, err := b.Snapshot(ctx, browser.ModeInteractive)
+	if err != nil {
+		t.Fatalf("Snapshot interactive: %v", err)
+	}
+
+	def, err := b.Snapshot(ctx, browser.ModeDefault)
+	if err != nil {
+		t.Fatalf("Snapshot default: %v", err)
+	}
+
+	all, err := b.Snapshot(ctx, browser.ModeAll)
+	if err != nil {
+		t.Fatalf("Snapshot all: %v", err)
+	}
+
+	iLines := strings.Count(interactive.String(), "\n")
+	dLines := strings.Count(def.String(), "\n")
+	aLines := strings.Count(all.String(), "\n")
+
+	if iLines >= dLines {
+		t.Errorf("expected interactive (%d lines) < default (%d lines)\ninteractive:\n%s\ndefault:\n%s",
+			iLines, dLines, interactive.String(), def.String())
+	}
+	if dLines >= aLines {
+		t.Errorf("expected default (%d lines) < all (%d lines)\ndefault:\n%s\nall:\n%s",
+			dLines, aLines, def.String(), all.String())
+	}
+
+	// Interactive should have buttons but not headings.
+	iText := interactive.String()
+	if !strings.Contains(iText, "button") {
+		t.Errorf("expected buttons in interactive snapshot, got:\n%s", iText)
+	}
+
+	// All should include static text content like paragraph text.
+	aText := all.String()
+	if !strings.Contains(aText, "Deploy v1.0 completed") {
+		t.Errorf("expected static text in all snapshot, got:\n%s", aText)
+	}
+}
