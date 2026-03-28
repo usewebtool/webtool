@@ -1,12 +1,10 @@
 package agent
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -89,7 +87,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /hover", s.handleHover)
 	mux.HandleFunc("POST /stop", s.handleStop)
 
-	s.srv = &http.Server{Handler: s.withLogging(s.withActionPolicy(mux))}
+	s.srv = &http.Server{Handler: s.withActionPolicy(mux)}
 
 	// Shut down on SIGTERM/SIGINT.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
@@ -148,30 +146,6 @@ func (s *Server) pidFile() string {
 	return s.dir + "/agent.pid"
 }
 
-// withLogging wraps a handler to log every request in a compact format.
-func (s *Server) withLogging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cmd := strings.TrimPrefix(r.URL.Path, "/")
-		if cmd == "health" {
-			next.ServeHTTP(w, r)
-			return
-		}
-		if r.Body != nil && r.ContentLength > 0 {
-			body, err := io.ReadAll(r.Body)
-			r.Body.Close()
-			if err != nil {
-				s.logger.Printf("%s (error reading body: %v)", cmd, err)
-			} else {
-				r.Body = io.NopCloser(bytes.NewReader(body))
-				s.logger.Println(cmd, formatParams(body))
-			}
-		} else {
-			s.logger.Println(cmd)
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 // alwaysAllowedActions are actions that bypass the action policy.
 // These are safe tab management and daemon lifecycle actions.
 var alwaysAllowedActions = map[string]bool{
@@ -202,32 +176,6 @@ func (s *Server) withActionPolicy(next http.Handler) http.Handler {
 	})
 }
 
-// redactedKeys are request fields that may contain sensitive data (passwords,
-// JS expressions, file paths) and must not be written to the log.
-var redactedKeys = map[string]bool{
-	"text":  true, // type command — may contain passwords
-	"js":    true, // eval command — may embed tokens
-	"value": true, // select command — may contain sensitive form values
-	"files": true, // upload command — reveals file paths on disk
-}
-
-// formatParams formats a JSON body as key=value pairs, redacting sensitive fields.
-func formatParams(body []byte) string {
-	var m map[string]any
-	if json.Unmarshal(body, &m) != nil {
-		return string(body)
-	}
-	var parts []string
-	for k, v := range m {
-		if redactedKeys[k] {
-			parts = append(parts, fmt.Sprintf("%s=[REDACTED]", k))
-		} else {
-			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
-		}
-	}
-	return strings.Join(parts, " ")
-}
-
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	<-s.ready
 	if s.connectErr != nil {
@@ -255,6 +203,7 @@ func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logger.Printf("open %s", req.URL)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -267,6 +216,7 @@ func (s *Server) handleTabs(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logger.Println("tabs")
 	writeJSON(w, http.StatusOK, TabsResponse{Tabs: tabs})
 }
 
@@ -292,6 +242,7 @@ func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logger.Println("snapshot")
 	writeJSON(w, http.StatusOK, SnapshotResponse{Snapshot: ps.String()})
 }
 
@@ -309,10 +260,12 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.checkErr(s.browser.Click(r.Context(), req.Selector)); err != nil {
+	el, err := s.browser.Click(r.Context(), req.Selector)
+	if err := s.checkErr(err); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logElement("click", el)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -334,6 +287,7 @@ func (s *Server) handleKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logger.Printf("key %s", req.Name)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -351,10 +305,12 @@ func (s *Server) handleType(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.checkErr(s.browser.Type(r.Context(), req.Selector, req.Text)); err != nil {
+	el, err := s.browser.Type(r.Context(), req.Selector, req.Text)
+	if err := s.checkErr(err); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logElement("type", el)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -366,6 +322,7 @@ func (s *Server) handleBack(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logger.Println("back")
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -377,6 +334,7 @@ func (s *Server) handleForward(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logger.Println("forward")
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -388,6 +346,7 @@ func (s *Server) handleReload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logger.Println("reload")
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -410,6 +369,7 @@ func (s *Server) handleEval(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logger.Println("eval")
 	writeJSON(w, http.StatusOK, EvalResponse{Result: result})
 }
 
@@ -431,10 +391,12 @@ func (s *Server) handleSelect(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.checkErr(s.browser.Select(r.Context(), req.Selector, req.Value)); err != nil {
+	el, err := s.browser.Select(r.Context(), req.Selector, req.Value)
+	if err := s.checkErr(err); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logElement("select", el)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -453,6 +415,7 @@ func (s *Server) handleExtract(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logger.Printf("extract selector=%s", req.Selector)
 	writeJSON(w, http.StatusOK, ExtractResponse{Content: content})
 }
 
@@ -474,6 +437,7 @@ func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logger.Printf("tab %d", req.Index)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -495,6 +459,7 @@ func (s *Server) handleWait(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logger.Printf("wait %s", req.Target)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -512,10 +477,12 @@ func (s *Server) handleHover(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.checkErr(s.browser.Hover(r.Context(), req.Selector)); err != nil {
+	el, err := s.browser.Hover(r.Context(), req.Selector)
+	if err := s.checkErr(err); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logElement("hover", el)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -537,16 +504,26 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.checkErr(s.browser.Upload(r.Context(), req.Selector, req.Files)); err != nil {
+	el, err := s.browser.Upload(r.Context(), req.Selector, req.Files)
+	if err := s.checkErr(err); err != nil {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
+	s.logElement("upload", el)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
 func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
+	s.logger.Println("stop")
 	writeJSON(w, http.StatusOK, Response{})
 	go s.Shutdown(context.Background())
+}
+
+// logElement logs the accessible role and name of the element that was acted on.
+func (s *Server) logElement(action string, el *browser.Element) {
+	if el.Role != "" {
+		s.logger.Printf("%s %s %q", action, el.Role, el.Name)
+	}
 }
 
 // checkErr checks for async policy errors from the browser's active tab.

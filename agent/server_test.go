@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -58,26 +57,5 @@ func TestHealthReturnsConnectError(t *testing.T) {
 
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", resp.StatusCode)
-	}
-}
-
-func TestFormatParams_RedactsSensitiveFields(t *testing.T) {
-	body := []byte(`{"selector":"12345","text":"my-secret-password","js":"document.cookie"}`)
-	got := formatParams(body)
-
-	if strings.Contains(got, "my-secret-password") {
-		t.Error("text value should be redacted")
-	}
-	if strings.Contains(got, "document.cookie") {
-		t.Error("js value should be redacted")
-	}
-	if !strings.Contains(got, "text=[REDACTED]") {
-		t.Error("text should show [REDACTED]")
-	}
-	if !strings.Contains(got, "js=[REDACTED]") {
-		t.Error("js should show [REDACTED]")
-	}
-	if !strings.Contains(got, "selector=12345") {
-		t.Error("selector should be logged normally")
 	}
 }
