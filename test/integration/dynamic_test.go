@@ -4,8 +4,10 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/usewebtool/webtool/browser"
 )
@@ -174,5 +176,129 @@ func TestSPA_ClickBackForwardRestoresRoute(t *testing.T) {
 	text = snap.String()
 	if !strings.Contains(text, `heading[1] "Settings"`) || !strings.Contains(text, "Route: settings") {
 		t.Errorf("expected settings route after forward, got:\n%s", text)
+	}
+}
+
+func TestTabs_OpenNewTabAndSwitchBetweenFixtures(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), integrationTestTimeout)
+	defer cancel()
+
+	baseURL := pageURL("/simple") + fmt.Sprintf("?case=tabs-switch-%d", time.Now().UnixNano())
+	newTabURL := pageURL("/spa") + fmt.Sprintf("?case=tabs-switch-%d", time.Now().UnixNano())
+
+	if err := b.Open(ctx, baseURL, false); err != nil {
+		t.Fatalf("Open base tab: %v", err)
+	}
+
+	if err := b.Open(ctx, newTabURL, true); err != nil {
+		t.Fatalf("Open new tab: %v", err)
+	}
+
+	tabs, err := b.Tabs(ctx)
+	if err != nil {
+		t.Fatalf("Tabs after opening new tab: %v", err)
+	}
+
+	baseTab := findTabByURL(t, tabs, baseURL)
+	spaTab := findTabByURL(t, tabs, newTabURL)
+
+	if !spaTab.Active {
+		t.Fatalf("expected new tab to be active, tabs=%+v", tabs)
+	}
+	if baseTab.Active {
+		t.Fatalf("expected original tab to be inactive after opening new tab, tabs=%+v", tabs)
+	}
+
+	snap, err := b.Snapshot(ctx, browser.ModeDefault)
+	if err != nil {
+		t.Fatalf("Snapshot in new tab: %v", err)
+	}
+	if !strings.Contains(snap.String(), "Route: home") {
+		t.Fatalf("expected SPA tab snapshot, got:\n%s", snap.String())
+	}
+
+	if err := b.Switch(ctx, baseTab.Index); err != nil {
+		t.Fatalf("Switch to base tab: %v", err)
+	}
+
+	snap, err = b.Snapshot(ctx, browser.ModeDefault)
+	if err != nil {
+		t.Fatalf("Snapshot after switching back: %v", err)
+	}
+	if !strings.Contains(snap.String(), "Click me") {
+		t.Fatalf("expected simple page after switching back, got:\n%s", snap.String())
+	}
+
+	if err := b.Switch(ctx, spaTab.Index); err != nil {
+		t.Fatalf("Switch to SPA tab: %v", err)
+	}
+
+	snap, err = b.Snapshot(ctx, browser.ModeDefault)
+	if err != nil {
+		t.Fatalf("Snapshot after switching to SPA tab: %v", err)
+	}
+	if !strings.Contains(snap.String(), "Route: home") {
+		t.Fatalf("expected SPA page after switching back, got:\n%s", snap.String())
+	}
+}
+
+func TestTabs_TabsReflectLatestActiveTabAfterMultipleNewTabs(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), integrationTestTimeout)
+	defer cancel()
+
+	firstURL := pageURL("/simple") + fmt.Sprintf("?case=tabs-first-%d", time.Now().UnixNano())
+	secondURL := pageURL("/controlled") + fmt.Sprintf("?case=tabs-second-%d", time.Now().UnixNano())
+	thirdURL := pageURL("/spa") + fmt.Sprintf("?case=tabs-third-%d", time.Now().UnixNano())
+
+	if err := b.Open(ctx, firstURL, false); err != nil {
+		t.Fatalf("Open first tab: %v", err)
+	}
+	if err := b.Open(ctx, secondURL, true); err != nil {
+		t.Fatalf("Open second tab: %v", err)
+	}
+	if err := b.Open(ctx, thirdURL, true); err != nil {
+		t.Fatalf("Open third tab: %v", err)
+	}
+
+	tabs, err := b.Tabs(ctx)
+	if err != nil {
+		t.Fatalf("Tabs after multiple new tabs: %v", err)
+	}
+
+	firstTab := findTabByURL(t, tabs, firstURL)
+	secondTab := findTabByURL(t, tabs, secondURL)
+	thirdTab := findTabByURL(t, tabs, thirdURL)
+
+	if !thirdTab.Active {
+		t.Fatalf("expected latest new tab to be active, tabs=%+v", tabs)
+	}
+	if firstTab.Active || secondTab.Active {
+		t.Fatalf("expected only latest new tab to be active, tabs=%+v", tabs)
+	}
+
+	if err := b.Switch(ctx, secondTab.Index); err != nil {
+		t.Fatalf("Switch to controlled tab: %v", err)
+	}
+
+	tabs, err = b.Tabs(ctx)
+	if err != nil {
+		t.Fatalf("Tabs after switching: %v", err)
+	}
+
+	secondTab = findTabByURL(t, tabs, secondURL)
+	thirdTab = findTabByURL(t, tabs, thirdURL)
+	if !secondTab.Active {
+		t.Fatalf("expected switched tab to be active, tabs=%+v", tabs)
+	}
+	if thirdTab.Active {
+		t.Fatalf("expected previous active tab to be inactive after switch, tabs=%+v", tabs)
+	}
+
+	snap, err := b.Snapshot(ctx, browser.ModeAll)
+	if err != nil {
+		t.Fatalf("Snapshot after switching to controlled tab: %v", err)
+	}
+	if !strings.Contains(snap.String(), "Task board") || !strings.Contains(snap.String(), "Priority") {
+		t.Fatalf("expected controlled form after switch, got:\n%s", snap.String())
 	}
 }

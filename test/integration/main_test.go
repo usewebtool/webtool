@@ -91,6 +91,19 @@ func findElement(t *testing.T, snapshot, match string) string {
 	return ""
 }
 
+func findTabByURL(t *testing.T, tabs []browser.TabInfo, url string) browser.TabInfo {
+	t.Helper()
+	want := strings.SplitN(url, "#", 2)[0]
+	for _, tab := range tabs {
+		got := strings.SplitN(tab.URL, "#", 2)[0]
+		if got == want {
+			return tab
+		}
+	}
+	t.Fatalf("no tab with URL %q found in tabs: %+v", url, tabs)
+	return browser.TabInfo{}
+}
+
 const simpleHTML = `<!DOCTYPE html>
 <html>
 <head><title>Simple Test</title></head>
