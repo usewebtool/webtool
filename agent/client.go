@@ -271,6 +271,15 @@ func (c *Client) Hover(ctx context.Context, selector string) error {
 	return resp.Err()
 }
 
+// Scroll scrolls the page by the given number of pixels (0 = one viewport).
+func (c *Client) Scroll(ctx context.Context, pixels int, up bool) error {
+	var resp Response
+	if err := c.do(ctx, "POST", "/scroll", ScrollRequest{Pixels: pixels, Up: up}, &resp); err != nil {
+		return err
+	}
+	return resp.Err()
+}
+
 // Upload sets one or more files on a file input element.
 func (c *Client) Upload(ctx context.Context, selector string, files []string) error {
 	var resp Response

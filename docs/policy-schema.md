@@ -41,7 +41,7 @@ Controls which CLI actions the agent can perform.
 - Action names are case-insensitive (lowercased on load).
 - Unknown action names are rejected at load time.
 
-**Valid action names:** `open`, `snapshot`, `click`, `type`, `key`, `back`, `forward`, `reload`, `eval`, `select`, `extract`, `switch`, `wait`, `upload`, `hover`, `tabs`.
+**Valid action names:** `open`, `snapshot`, `click`, `type`, `key`, `back`, `forward`, `reload`, `eval`, `select`, `extract`, `switch`, `wait`, `upload`, `hover`, `tabs`, `scroll`.
 
 `health` and `stop` always bypass the action policy.
 

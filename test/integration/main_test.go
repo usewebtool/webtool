@@ -281,6 +281,7 @@ const dynamicHTML = `<!DOCTYPE html>
 	<style>
 		.card-actions { display: none; }
 		.card:hover .card-actions { display: block; }
+		#app { min-height: 200vh; }
 	</style>
 </head>
 <body>

@@ -36,6 +36,7 @@ var knownActions = map[string]bool{
 	"key": true, "back": true, "forward": true, "reload": true,
 	"eval": true, "select": true, "extract": true, "tab": true,
 	"wait": true, "upload": true, "hover": true, "tabs": true,
+	"scroll": true,
 }
 
 // IsActionAllowed checks if the given action is allowed by the policy.

@@ -95,6 +95,12 @@ type HoverRequest struct {
 	Selector string `json:"selector"`
 }
 
+// ScrollRequest is the request body for the /scroll endpoint.
+type ScrollRequest struct {
+	Pixels int  `json:"pixels"`
+	Up     bool `json:"up,omitempty"`
+}
+
 // SwitchRequest is the request body for the /switch endpoint.
 type SwitchRequest struct {
 	Index int `json:"index"`

@@ -85,6 +85,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /wait", s.handleWait)
 	mux.HandleFunc("POST /upload", s.handleUpload)
 	mux.HandleFunc("POST /hover", s.handleHover)
+	mux.HandleFunc("POST /scroll", s.handleScroll)
 	mux.HandleFunc("POST /stop", s.handleStop)
 
 	s.srv = &http.Server{Handler: s.withActionPolicy(mux)}
@@ -483,6 +484,39 @@ func (s *Server) handleHover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.logElement("hover", req.Selector, el)
+	writeJSON(w, http.StatusOK, Response{})
+}
+
+func (s *Server) handleScroll(w http.ResponseWriter, r *http.Request) {
+	var req ScrollRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, Response{Error: fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	pixels := req.Pixels
+	if pixels == 0 {
+		pixels = s.browser.ViewportHeight(r.Context())
+		if pixels == 0 {
+			pixels = 600
+		}
+	}
+	if req.Up && pixels > 0 {
+		pixels = -pixels
+	}
+
+	if err := s.checkErr(s.browser.Scroll(r.Context(), pixels)); err != nil {
+		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
+		return
+	}
+	dir := "down"
+	if pixels < 0 {
+		dir = "up"
+	}
+	s.logger.Printf("scroll %s pixels=%d", dir, pixels)
 	writeJSON(w, http.StatusOK, Response{})
 }
 

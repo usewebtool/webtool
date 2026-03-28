@@ -425,3 +425,33 @@ func (b *Browser) Key(ctx context.Context, name string) error {
 	waitPageSettle(ctx, page)
 	return nil
 }
+
+// Scroll scrolls the page by the given number of pixels. Positive values
+// scroll down, negative values scroll up.
+func (b *Browser) Scroll(ctx context.Context, pixels int) error {
+	tab, err := b.activeTab()
+	if err != nil {
+		return err
+	}
+	page := tab.page
+
+	if err := page.Context(ctx).Mouse.Scroll(0, float64(pixels), 1); err != nil {
+		return fmt.Errorf("scrolling: %w", err)
+	}
+
+	waitPageSettle(ctx, page)
+	return nil
+}
+
+// ViewportHeight returns the browser window height, or 0 if it cannot be determined.
+func (b *Browser) ViewportHeight(ctx context.Context) int {
+	tab, err := b.activeTab()
+	if err != nil {
+		return 0
+	}
+	bounds, err := tab.page.Context(ctx).GetWindow()
+	if err != nil || bounds.Height == nil {
+		return 0
+	}
+	return *bounds.Height
+}
