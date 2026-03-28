@@ -359,7 +359,7 @@ func (b *Browser) Wait(ctx context.Context, target string) error {
 	}
 	page := tab.page
 
-	_, err = resolveElement(ctx, page, target)
+	_, err = findElement(ctx, page, target)
 	return err
 }
 
