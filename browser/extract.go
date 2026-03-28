@@ -21,11 +21,11 @@ func (b *Browser) Extract(ctx context.Context, selector string, asHTML bool) (st
 	if selector == "" {
 		html, err = page.Context(ctx).HTML()
 	} else {
-		el, resolveErr := resolveElement(ctx, page, selector)
+		el, resolveErr := findElement(ctx, page, selector)
 		if resolveErr != nil {
 			return "", resolveErr
 		}
-		html, err = el.Element().HTML()
+		html, err = el.HTML()
 	}
 	if err != nil {
 		return "", fmt.Errorf("extracting HTML: %w", err)
