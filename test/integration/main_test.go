@@ -312,6 +312,9 @@ const dynamicHTML = `<!DOCTYPE html>
 			<button id="refresh-feed">Refresh Feed</button>
 		</div>
 
+		<!-- Shadow DOM: web component with encapsulated internals (for Shadow DOM test) -->
+		<shadow-card></shadow-card>
+
 		<!-- Counter: changes on interaction, resets on reload (for Reload test) -->
 		<div id="counter-section">
 			<span id="counter-value">0</span>
@@ -321,6 +324,23 @@ const dynamicHTML = `<!DOCTYPE html>
 
 	<script>
 	(() => {
+		// Shadow DOM web component.
+		class ShadowCard extends HTMLElement {
+			connectedCallback() {
+				const shadow = this.attachShadow({ mode: "open" });
+				shadow.innerHTML =
+					'<div>' +
+						'<h2>Shadow Heading</h2>' +
+						'<p id="shadow-status">Idle</p>' +
+						'<button id="shadow-btn">Shadow Action</button>' +
+					'</div>';
+				shadow.getElementById("shadow-btn").addEventListener("click", () => {
+					shadow.getElementById("shadow-status").textContent = "Shadow clicked";
+				});
+			}
+		}
+		customElements.define("shadow-card", ShadowCard);
+
 		// Delayed notification appears after 2s — long enough that page load
 		// and waitPageSettle have already completed, so Wait must actually poll.
 		setTimeout(() => {
