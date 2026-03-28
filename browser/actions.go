@@ -81,51 +81,51 @@ func waitPageLoad(ctx context.Context, page *rod.Page, action func() error) erro
 // via resolveElement (backendNodeId, XPath, or CSS). Actionability checks run
 // before the click: WaitStable (animations settled), Disabled (not disabled),
 // and Interactable (visible, not obscured, pointer-events ok).
-func (b *Browser) Click(ctx context.Context, selector string) error {
+func (b *Browser) Click(ctx context.Context, selector string) (*Element, error) {
 	tab, err := b.activeTab()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	page := tab.page
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	el = el.Context(ctx)
 
-	if err := el.WaitStable(stableQuietPeriod); err != nil {
-		return &ErrNotStable{Sel: selector}
+	if err := el.Element().WaitStable(stableQuietPeriod); err != nil {
+		return nil, &ErrNotStable{Sel: selector}
 	}
 
-	disabled, err := el.Disabled()
+	disabled, err := el.Element().Disabled()
 	if err != nil {
-		return fmt.Errorf("checking disabled state: %w", err)
+		return nil, fmt.Errorf("checking disabled state: %w", err)
 	}
 	if disabled {
-		return &ErrNotEnabled{Sel: selector}
+		return nil, &ErrNotEnabled{Sel: selector}
 	}
 
-	if err := el.ScrollIntoView(); err != nil {
-		return fmt.Errorf("scrolling element into view: %w", err)
+	if err := el.Element().ScrollIntoView(); err != nil {
+		return nil, fmt.Errorf("scrolling element into view: %w", err)
 	}
 
-	pt, err := el.Interactable()
+	pt, err := el.Element().Interactable()
 	if err != nil {
-		return translateInteractableErr(err, selector)
+		return nil, translateInteractableErr(err, selector)
 	}
 
 	if err := page.Mouse.MoveTo(*pt); err != nil {
-		return fmt.Errorf("moving mouse to element: %w", err)
+		return nil, fmt.Errorf("moving mouse to element: %w", err)
 	}
 
 	if err := page.Mouse.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return fmt.Errorf("clicking element: %w", err)
+		return nil, fmt.Errorf("clicking element: %w", err)
 	}
 
 	waitPageSettle(ctx, page)
-	return nil
+	return el, nil
 }
 
 // Type finds an element by selector and types text into it. Uses Rod's
@@ -137,79 +137,79 @@ func (b *Browser) Click(ctx context.Context, selector string) error {
 //
 // Existing text is selected first so the new text replaces it, matching
 // human behavior (select all → type overwrites).
-func (b *Browser) Type(ctx context.Context, selector string, text string) error {
+func (b *Browser) Type(ctx context.Context, selector string, text string) (*Element, error) {
 	tab, err := b.activeTab()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	page := tab.page
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	el = el.Context(ctx)
 
-	if err := el.WaitStable(stableQuietPeriod); err != nil {
-		return &ErrNotStable{Sel: selector}
+	if err := el.Element().WaitStable(stableQuietPeriod); err != nil {
+		return nil, &ErrNotStable{Sel: selector}
 	}
 
-	disabled, err := el.Disabled()
+	disabled, err := el.Element().Disabled()
 	if err != nil {
-		return fmt.Errorf("checking disabled state: %w", err)
+		return nil, fmt.Errorf("checking disabled state: %w", err)
 	}
 	if disabled {
-		return &ErrNotEnabled{Sel: selector}
+		return nil, &ErrNotEnabled{Sel: selector}
 	}
 
-	if err := el.ScrollIntoView(); err != nil {
-		return fmt.Errorf("scrolling element into view: %w", err)
+	if err := el.Element().ScrollIntoView(); err != nil {
+		return nil, fmt.Errorf("scrolling element into view: %w", err)
 	}
 
-	if _, err := el.Interactable(); err != nil {
-		return translateInteractableErr(err, selector)
+	if _, err := el.Element().Interactable(); err != nil {
+		return nil, translateInteractableErr(err, selector)
 	}
 
 	// Select existing text so new text replaces it.
 	// Fails silently on contenteditable elements (no .select() method).
-	_ = el.SelectAllText()
+	_ = el.Element().SelectAllText()
 
-	if err := el.Input(text); err != nil {
-		return fmt.Errorf("typing text: %w", err)
+	if err := el.Element().Input(text); err != nil {
+		return nil, fmt.Errorf("typing text: %w", err)
 	}
 
 	waitPageSettle(ctx, page)
-	return nil
+	return el, nil
 }
 
 // Select finds a <select> element by selector and selects the option matching
 // the given visible text. Uses rod's built-in Element.Select which handles
 // scrolling into view, waiting for visibility, and dispatching change events.
-func (b *Browser) Select(ctx context.Context, selector string, value string) error {
+func (b *Browser) Select(ctx context.Context, selector string, value string) (*Element, error) {
 	tab, err := b.activeTab()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	page := tab.page
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	el = el.Context(ctx)
 
-	if err := el.Select([]string{value}, true, rod.SelectorTypeText); err != nil {
+	if err := el.Element().Select([]string{value}, true, rod.SelectorTypeText); err != nil {
 		var notFound *rod.ElementNotFoundError
 		if errors.As(err, &notFound) {
-			return &ErrOptionNotFound{Sel: selector, Value: value}
+			return nil, &ErrOptionNotFound{Sel: selector, Value: value}
 		}
-		return fmt.Errorf("selecting option %q: %w", value, err)
+		return nil, fmt.Errorf("selecting option %q: %w", value, err)
 	}
 
 	waitPageSettle(ctx, page)
-	return nil
+	return el, nil
 }
 
 // Eval executes a JavaScript expression in the page and returns the result.
@@ -292,49 +292,49 @@ func (b *Browser) Reload(ctx context.Context) error {
 // Upload sets one or more files on a <input type="file"> element. Each path
 // must be absolute and accessible to Chrome. Uses Rod's Element.SetFiles
 // which calls CDP DOM.setFileInputFiles.
-func (b *Browser) Upload(ctx context.Context, selector string, files []string) error {
+func (b *Browser) Upload(ctx context.Context, selector string, files []string) (*Element, error) {
 	tab, err := b.activeTab()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	page := tab.page
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	el = el.Context(ctx)
 
-	if err := el.SetFiles(files); err != nil {
-		return fmt.Errorf("setting files: %w", err)
+	if err := el.Element().SetFiles(files); err != nil {
+		return nil, fmt.Errorf("setting files: %w", err)
 	}
 
 	waitPageSettle(ctx, page)
-	return nil
+	return el, nil
 }
 
 // Hover moves the mouse over an element without clicking. Triggers CSS :hover
 // states and JS mouseenter/mouseover events. Rod's Hover handles scroll-into-view
 // and wait-for-interactable internally.
-func (b *Browser) Hover(ctx context.Context, selector string) error {
+func (b *Browser) Hover(ctx context.Context, selector string) (*Element, error) {
 	tab, err := b.activeTab()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	page := tab.page
 
 	el, err := resolveElement(ctx, page, selector)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if err := el.Context(ctx).Hover(); err != nil {
-		return fmt.Errorf("hovering element: %w", err)
+	if err := el.Context(ctx).Element().Hover(); err != nil {
+		return nil, fmt.Errorf("hovering element: %w", err)
 	}
 
 	waitPageSettle(ctx, page)
-	return nil
+	return el, nil
 }
 
 // Wait waits for a duration or for an element to appear.

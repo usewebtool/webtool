@@ -25,7 +25,7 @@ func (b *Browser) Extract(ctx context.Context, selector string, asHTML bool) (st
 		if resolveErr != nil {
 			return "", resolveErr
 		}
-		html, err = el.HTML()
+		html, err = el.Element().HTML()
 	}
 	if err != nil {
 		return "", fmt.Errorf("extracting HTML: %w", err)
