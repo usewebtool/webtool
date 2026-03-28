@@ -352,24 +352,15 @@ func (b *Browser) Wait(ctx context.Context, target string) error {
 		}
 	}
 
-	// Treat as selector — poll until element exists.
+	// Treat as selector — rod's auto-retry handles polling until found or timeout.
 	tab, err := b.activeTab()
 	if err != nil {
 		return err
 	}
 	page := tab.page
 
-	for {
-		_, err := resolveElementNow(ctx, page, target)
-		if err == nil {
-			return nil
-		}
-		select {
-		case <-time.After(pageSettleTick):
-		case <-ctx.Done():
-			return fmt.Errorf("timed out waiting for %q", target)
-		}
-	}
+	_, err = resolveElement(ctx, page, target)
+	return err
 }
 
 // translateInteractableErr converts Rod's interactability errors into our typed
