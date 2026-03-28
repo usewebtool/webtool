@@ -30,7 +30,9 @@ var (
 
 // pages maps route paths to HTML content. Add new fixtures here.
 var pages = map[string]string{
-	"/simple": simpleHTML,
+	"/simple":     simpleHTML,
+	"/controlled": controlledHTML,
+	"/spa":        spaHTML,
 }
 
 func TestMain(m *testing.M) {
@@ -93,5 +95,153 @@ const simpleHTML = `<!DOCTYPE html>
 	<h1>Hello</h1>
 	<button id="btn" onclick="document.getElementById('output').textContent = 'clicked'">Click me</button>
 	<div id="output"></div>
+</body>
+</html>`
+
+const controlledHTML = `<!DOCTYPE html>
+<html>
+<head>
+	<title>Controlled Form</title>
+	<meta charset="utf-8">
+</head>
+<body>
+	<div id="app"></div>
+	<script>
+	(() => {
+		const state = {
+			draft: "",
+			items: [],
+			status: "Idle"
+		};
+
+		function render() {
+			const itemsHTML = state.items.map(item => "<li>" + escapeHTML(item) + "</li>").join("");
+			document.getElementById("app").innerHTML =
+				"<main>" +
+					"<h1>Task board</h1>" +
+					"<label for=\"task-input\">Task name</label>" +
+					"<input id=\"task-input\" type=\"text\" value=\"" + escapeHTML(state.draft) + "\" autocomplete=\"off\">" +
+					"<button id=\"save-btn\" " + (state.draft.trim() ? "" : "disabled") + ">Add task</button>" +
+					"<div role=\"status\" aria-live=\"polite\">" + escapeHTML(state.status) + "</div>" +
+					"<p>Preview: " + escapeHTML(state.draft || "Nothing yet") + "</p>" +
+					"<ul>" + itemsHTML + "</ul>" +
+				"</main>";
+		}
+
+		function submit() {
+			const value = state.draft.trim();
+			if (!value) return;
+			state.items.push(value);
+			state.status = "Added " + value;
+			state.draft = "";
+			render();
+			document.getElementById("task-input").focus();
+		}
+
+		function escapeHTML(value) {
+			return value
+				.replace(/&/g, "&amp;")
+				.replace(/</g, "&lt;")
+				.replace(/>/g, "&gt;")
+				.replace(/"/g, "&quot;");
+		}
+
+		document.addEventListener("input", (event) => {
+			if (event.target.id !== "task-input") return;
+			state.draft = event.target.value;
+			state.status = state.draft ? "Draft ready" : "Idle";
+			render();
+			document.getElementById("task-input").focus();
+		});
+
+		document.addEventListener("click", (event) => {
+			if (event.target.id === "save-btn") {
+				submit();
+			}
+		});
+
+		document.addEventListener("keydown", (event) => {
+			if (event.target.id === "task-input" && event.key === "Enter") {
+				event.preventDefault();
+				submit();
+			}
+		});
+
+		render();
+	})();
+	</script>
+</body>
+</html>`
+
+const spaHTML = `<!DOCTYPE html>
+<html>
+<head>
+	<title>Single Page App</title>
+	<meta charset="utf-8">
+</head>
+<body>
+	<div id="app"></div>
+	<script>
+	(() => {
+		const state = {
+			route: "home"
+		};
+
+		function setRoute(route, push) {
+			state.route = route;
+			if (push) {
+				history.pushState({route}, "", "#" + route);
+			}
+			render();
+		}
+
+		function routeBody() {
+			if (state.route === "settings") {
+				return "<section>" +
+					"<h1>Settings</h1>" +
+					"<p>Notifications are enabled.</p>" +
+					"<button id=\"save-settings\">Save preferences</button>" +
+				"</section>";
+			}
+
+			return "<section>" +
+				"<h1>Home</h1>" +
+				"<p>Dashboard overview.</p>" +
+			"</section>";
+		}
+
+		function render() {
+			document.getElementById("app").innerHTML =
+				"<main>" +
+					"<nav aria-label=\"Primary\">" +
+						"<button id=\"nav-home\">Home</button>" +
+						"<button id=\"nav-settings\">Settings</button>" +
+					"</nav>" +
+					"<div role=\"status\" aria-live=\"polite\">Route: " + state.route + "</div>" +
+					routeBody() +
+				"</main>";
+		}
+
+		document.addEventListener("click", (event) => {
+			if (event.target.id === "nav-home") {
+				setRoute("home", true);
+			}
+			if (event.target.id === "nav-settings") {
+				setRoute("settings", true);
+			}
+		});
+
+		window.addEventListener("popstate", (event) => {
+			const route = event.state && event.state.route ? event.state.route : "home";
+			setRoute(route, false);
+		});
+
+		if (location.hash === "#settings") {
+			state.route = "settings";
+		}
+		history.replaceState({route: state.route}, "", "#" + state.route);
+		render();
+	})();
+	</script>
 </body>
 </html>`
