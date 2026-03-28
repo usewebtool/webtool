@@ -19,6 +19,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/usewebtool/webtool/browser"
 )
@@ -27,6 +28,8 @@ var (
 	b      *browser.Browser
 	server *httptest.Server
 )
+
+const integrationTestTimeout = 30 * time.Second
 
 // pages maps route paths to HTML content. Add new fixtures here.
 var pages = map[string]string{
@@ -110,20 +113,50 @@ const controlledHTML = `<!DOCTYPE html>
 	(() => {
 		const state = {
 			draft: "",
+			priority: "Normal",
+			notes: "",
+			ownerEmail: "",
+			deliveryMode: "Standard",
+			notifyTeam: false,
 			items: [],
 			status: "Idle"
 		};
+
+		function summaryText() {
+			return "Task: " + (state.draft || "Nothing yet") +
+				" | Priority: " + state.priority +
+				" | Notes: " + (state.notes || "None") +
+				" | Owner: " + (state.ownerEmail || "Unassigned") +
+				" | Delivery: " + state.deliveryMode +
+				" | Notify: " + (state.notifyTeam ? "Yes" : "No");
+		}
 
 		function render() {
 			const itemsHTML = state.items.map(item => "<li>" + escapeHTML(item) + "</li>").join("");
 			document.getElementById("app").innerHTML =
 				"<main>" +
 					"<h1>Task board</h1>" +
+					"<label for=\"priority-select\">Priority</label>" +
+					"<select id=\"priority-select\">" +
+						"<option" + (state.priority === "Low" ? " selected" : "") + ">Low</option>" +
+						"<option" + (state.priority === "Normal" ? " selected" : "") + ">Normal</option>" +
+						"<option" + (state.priority === "Urgent" ? " selected" : "") + ">Urgent</option>" +
+					"</select>" +
 					"<label for=\"task-input\">Task name</label>" +
 					"<input id=\"task-input\" type=\"text\" value=\"" + escapeHTML(state.draft) + "\" autocomplete=\"off\">" +
+					"<label for=\"notes-input\">Notes</label>" +
+					"<textarea id=\"notes-input\">" + escapeHTML(state.notes) + "</textarea>" +
+					"<label for=\"owner-email\">Owner email</label>" +
+					"<input id=\"owner-email\" type=\"email\" value=\"" + escapeHTML(state.ownerEmail) + "\" autocomplete=\"off\">" +
+					"<fieldset>" +
+						"<legend>Delivery mode</legend>" +
+						"<label><input type=\"radio\" name=\"delivery-mode\" value=\"Standard\"" + (state.deliveryMode === "Standard" ? " checked" : "") + ">Standard delivery</label>" +
+						"<label><input type=\"radio\" name=\"delivery-mode\" value=\"Expedite\"" + (state.deliveryMode === "Expedite" ? " checked" : "") + ">Expedite delivery</label>" +
+					"</fieldset>" +
+					"<label><input id=\"notify-team\" type=\"checkbox\"" + (state.notifyTeam ? " checked" : "") + ">Notify team</label>" +
 					"<button id=\"save-btn\" " + (state.draft.trim() ? "" : "disabled") + ">Add task</button>" +
 					"<div role=\"status\" aria-live=\"polite\">" + escapeHTML(state.status) + "</div>" +
-					"<p>Preview: " + escapeHTML(state.draft || "Nothing yet") + "</p>" +
+					"<p>Preview: " + escapeHTML(summaryText()) + "</p>" +
 					"<ul>" + itemsHTML + "</ul>" +
 				"</main>";
 		}
@@ -131,9 +164,18 @@ const controlledHTML = `<!DOCTYPE html>
 		function submit() {
 			const value = state.draft.trim();
 			if (!value) return;
-			state.items.push(value);
-			state.status = "Added " + value;
+			const item = "[" + state.priority + "] " + value +
+				" / " + state.deliveryMode +
+				" / notify=" + (state.notifyTeam ? "yes" : "no") +
+				" / owner=" + (state.ownerEmail || "none") +
+				" / notes=" + (state.notes || "none");
+			state.items.push(item);
+			state.status = "Added " + item;
 			state.draft = "";
+			state.notes = "";
+			state.ownerEmail = "";
+			state.deliveryMode = "Standard";
+			state.notifyTeam = false;
 			render();
 			document.getElementById("task-input").focus();
 		}
@@ -147,11 +189,47 @@ const controlledHTML = `<!DOCTYPE html>
 		}
 
 		document.addEventListener("input", (event) => {
-			if (event.target.id !== "task-input") return;
-			state.draft = event.target.value;
-			state.status = state.draft ? "Draft ready" : "Idle";
+			if (event.target.id === "task-input") {
+				state.draft = event.target.value;
+				state.status = state.draft ? "Draft ready" : "Idle";
+			} else if (event.target.id === "notes-input") {
+				state.notes = event.target.value;
+				state.status = state.notes ? "Notes updated" : "Notes cleared";
+			} else if (event.target.id === "owner-email") {
+				state.ownerEmail = event.target.value;
+				state.status = state.ownerEmail ? "Owner updated" : "Owner cleared";
+			} else {
+				return;
+			}
 			render();
-			document.getElementById("task-input").focus();
+			if (event.target.id === "task-input") {
+				document.getElementById("task-input").focus();
+			}
+			if (event.target.id === "notes-input") {
+				document.getElementById("notes-input").focus();
+			}
+			if (event.target.id === "owner-email") {
+				document.getElementById("owner-email").focus();
+			}
+		});
+
+		document.addEventListener("change", (event) => {
+			if (event.target.id === "priority-select") {
+				state.priority = event.target.value;
+				state.status = "Priority set to " + state.priority;
+			} else if (event.target.name === "delivery-mode") {
+				state.deliveryMode = event.target.value;
+				state.status = "Delivery set to " + state.deliveryMode;
+			} else if (event.target.id === "notify-team") {
+				state.notifyTeam = event.target.checked;
+				state.status = state.notifyTeam ? "Notifications enabled" : "Notifications disabled";
+			} else {
+				return;
+			}
+			render();
+			if (event.target.id === "priority-select") {
+				document.getElementById("priority-select").focus();
+			}
 		});
 
 		document.addEventListener("click", (event) => {

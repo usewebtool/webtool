@@ -6,13 +6,12 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/usewebtool/webtool/browser"
 )
 
 func TestSimple_SnapshotShowsElements(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), integrationTestTimeout)
 	defer cancel()
 
 	if err := b.Open(ctx, pageURL("/simple"), false); err != nil {
@@ -34,7 +33,7 @@ func TestSimple_SnapshotShowsElements(t *testing.T) {
 }
 
 func TestSimple_ClickUpdatesDOM(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), integrationTestTimeout)
 	defer cancel()
 
 	if err := b.Open(ctx, pageURL("/simple"), false); err != nil {
