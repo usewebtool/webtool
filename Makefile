@@ -6,7 +6,7 @@ build:
 test:
 	go test ./...
 
-test-integration: build
+test-integration:
 	go test -tags integration ./test/integration/ -v -count=1
 
 clean:
