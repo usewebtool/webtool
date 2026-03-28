@@ -265,7 +265,7 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
-	s.logElement("click", el)
+	s.logElement("click", req.Selector, el)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -310,7 +310,7 @@ func (s *Server) handleType(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
-	s.logElement("type", el)
+	s.logElement("type", req.Selector, el)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -396,7 +396,7 @@ func (s *Server) handleSelect(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
-	s.logElement("select", el)
+	s.logElement("select", req.Selector, el)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -482,7 +482,7 @@ func (s *Server) handleHover(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
-	s.logElement("hover", el)
+	s.logElement("hover", req.Selector, el)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -509,7 +509,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Error: err.Error()})
 		return
 	}
-	s.logElement("upload", el)
+	s.logElement("upload", req.Selector, el)
 	writeJSON(w, http.StatusOK, Response{})
 }
 
@@ -519,10 +519,13 @@ func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 	go s.Shutdown(context.Background())
 }
 
-// logElement logs the accessible role and name of the element that was acted on.
-func (s *Server) logElement(action string, el *browser.Element) {
-	if el.Role != "" {
+// logElement logs an element-targeting action with AX metadata when available,
+// falling back to the raw selector.
+func (s *Server) logElement(action string, selector string, el *browser.Element) {
+	if el != nil && el.Name != "" {
 		s.logger.Printf("%s %s %q", action, el.Role, el.Name)
+	} else {
+		s.logger.Printf("%s %s", action, selector)
 	}
 }
 
